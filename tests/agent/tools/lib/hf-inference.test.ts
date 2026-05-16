@@ -1,32 +1,24 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { classifyImage, HfInferenceError } from '../../../../src/agent/tools/lib/hf-inference';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    statusText: status === 200 ? 'OK' : 'ERR',
-    json: async () => body,
-    text: async () => JSON.stringify(body),
-  } as unknown as Response;
-}
+vi.mock('@huggingface/inference', () => ({
+  imageClassification: vi.fn(),
+}));
+
+import { classifyImage, HfInferenceError } from '../../../../src/agent/tools/lib/hf-inference';
+import { imageClassification } from '@huggingface/inference';
+
+const sdkMock = imageClassification as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  vi.stubGlobal('fetch', vi.fn());
-});
-
-afterEach(() => {
-  vi.unstubAllGlobals();
+  sdkMock.mockReset();
 });
 
 describe('classifyImage', () => {
-  it('parses a successful classification response', async () => {
-    (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      jsonResponse([
-        { label: 'Fake', score: 0.91 },
-        { label: 'Real', score: 0.09 },
-      ]),
-    );
+  it('returns the SDK output unchanged for well-formed classifications', async () => {
+    sdkMock.mockResolvedValueOnce([
+      { label: 'Fake', score: 0.91 },
+      { label: 'Real', score: 0.09 },
+    ]);
     const out = await classifyImage('any/model', Buffer.from('x'), { token: 'hf_test' });
     expect(out).toEqual([
       { label: 'Fake', score: 0.91 },
@@ -34,35 +26,38 @@ describe('classifyImage', () => {
     ]);
   });
 
+  it('hands the SDK a tight ArrayBuffer derived from the input Buffer', async () => {
+    sdkMock.mockResolvedValueOnce([{ label: 'x', score: 1 }]);
+    const buf = Buffer.from([1, 2, 3, 4]);
+    await classifyImage('any/model', buf, { token: 't' });
+    expect(sdkMock).toHaveBeenCalledOnce();
+    const args = sdkMock.mock.calls[0][0] as { data: ArrayBuffer; model: string; accessToken: string };
+    expect(args.model).toBe('any/model');
+    expect(args.accessToken).toBe('t');
+    expect(args.data).toBeInstanceOf(ArrayBuffer);
+    expect(new Uint8Array(args.data)).toEqual(new Uint8Array([1, 2, 3, 4]));
+  });
+
   it('throws when HF_API_TOKEN is missing', async () => {
+    const original = process.env.HF_API_TOKEN;
     delete process.env.HF_API_TOKEN;
-    await expect(classifyImage('any/model', Buffer.from('x'))).rejects.toThrow(
-      /HF_API_TOKEN is not set/,
-    );
+    try {
+      await expect(classifyImage('m', Buffer.from('x'))).rejects.toThrow(/HF_API_TOKEN is not set/);
+    } finally {
+      if (original !== undefined) process.env.HF_API_TOKEN = original;
+    }
   });
 
-  it('retries once on 503 cold-start, then succeeds', async () => {
-    const fetchMock = fetch as ReturnType<typeof vi.fn>;
-    fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'loading' }, 503));
-    fetchMock.mockResolvedValueOnce(jsonResponse([{ label: 'Real', score: 1 }]));
-    const out = await classifyImage('m', Buffer.from('x'), {
-      token: 't',
-      retryDelayMs: 1,
-    });
-    expect(out).toEqual([{ label: 'Real', score: 1 }]);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-  });
-
-  it('throws HfInferenceError with status when 503 persists after retry', async () => {
-    const fetchMock = fetch as ReturnType<typeof vi.fn>;
-    fetchMock.mockResolvedValue(jsonResponse({ error: 'loading' }, 503));
+  it('wraps SDK errors in HfInferenceError, preserving status when present', async () => {
+    const err = Object.assign(new Error('not found'), { status: 404 });
+    sdkMock.mockRejectedValueOnce(err);
     await expect(
-      classifyImage('m', Buffer.from('x'), { token: 't', retryDelayMs: 1 }),
-    ).rejects.toMatchObject({ name: 'HfInferenceError', status: 503 });
+      classifyImage('m', Buffer.from('x'), { token: 't' }),
+    ).rejects.toMatchObject({ name: 'HfInferenceError', status: 404 });
   });
 
-  it('throws on unexpected response shape', async () => {
-    (fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(jsonResponse({ not: 'an array' }));
+  it('throws when SDK returns an unexpected shape', async () => {
+    sdkMock.mockResolvedValueOnce({ not: 'an array' } as never);
     await expect(
       classifyImage('m', Buffer.from('x'), { token: 't' }),
     ).rejects.toThrow(/unexpected shape/);

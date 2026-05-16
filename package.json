@@ -20,6 +20,7 @@
     "@contentauth/c2pa-node": "^0.5.5",
     "@fastify/cors": "^11.2.0",
     "@hapi/boom": "^10.0.1",
+    "@huggingface/inference": "^4.13.15",
     "@langchain/anthropic": "^0.3.34",
     "@langchain/core": "^0.3.80",
     "@langchain/langgraph": "^0.2.74",

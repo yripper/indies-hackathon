@@ -1,10 +1,15 @@
 /**
- * Thin client over HuggingFace Serverless Inference for image classification.
- * One retry on 503 (the model can be cold-loading; HF spins it up).
+ * Thin client over HuggingFace Inference for image classification.
+ *
+ * We use the official `@huggingface/inference` SDK rather than calling the
+ * legacy `api-inference.huggingface.co/models/<id>` endpoint directly.
+ * That legacy URL began returning `404 Not Found: Cannot POST` in early
+ * 2025 when HF migrated to the Inference Providers router
+ * (`router.huggingface.co`). The SDK abstracts the new routing and will
+ * survive further URL changes.
  */
 
-const DEFAULT_BASE_URL = 'https://api-inference.huggingface.co/models';
-const COLD_START_DELAY_MS = 5_000;
+import { imageClassification, type ImageClassificationOutput } from '@huggingface/inference';
 
 export interface HfClassification {
   label: string;
@@ -12,12 +17,7 @@ export interface HfClassification {
 }
 
 export interface ClassifyImageOptions {
-  baseUrl?: string;
   token?: string;
-  contentType?: string;
-  coldStartRetry?: boolean;
-  /** Override only for tests; defaults to {@link COLD_START_DELAY_MS}. */
-  retryDelayMs?: number;
 }
 
 export class HfInferenceError extends Error {
@@ -32,10 +32,7 @@ export async function classifyImage(
   buffer: Buffer,
   opts: ClassifyImageOptions = {},
 ): Promise<HfClassification[]> {
-  const baseUrl = opts.baseUrl ?? process.env.HF_INFERENCE_BASE_URL ?? DEFAULT_BASE_URL;
   const token = opts.token ?? process.env.HF_API_TOKEN ?? '';
-  const contentType = opts.contentType ?? 'image/jpeg';
-  const retry = opts.coldStartRetry ?? true;
 
   if (!token) {
     throw new HfInferenceError(
@@ -43,41 +40,35 @@ export async function classifyImage(
     );
   }
 
-  const url = `${baseUrl.replace(/\/$/, '')}/${modelId}`;
+  // The SDK expects Blob | ArrayBuffer for image data. Buffer.from() yields a
+  // Node Buffer (which is a Uint8Array view); slice the underlying ArrayBuffer
+  // so we hand the SDK a tight, owned ArrayBuffer with no extra padding.
+  const ab = buffer.buffer.slice(
+    buffer.byteOffset,
+    buffer.byteOffset + buffer.byteLength,
+  ) as ArrayBuffer;
 
-  const doPost = async (): Promise<Response> =>
-    fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': contentType,
-      },
-      body: buffer,
+  let result: ImageClassificationOutput;
+  try {
+    result = await imageClassification({
+      accessToken: token,
+      model: modelId,
+      data: ab,
     });
-
-  let res = await doPost();
-
-  if (res.status === 503 && retry) {
-    await new Promise((resolve) => setTimeout(resolve, opts.retryDelayMs ?? COLD_START_DELAY_MS));
-    res = await doPost();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const status = (err as { httpResponse?: { status?: number }; status?: number }).status
+      ?? (err as { httpResponse?: { status?: number } }).httpResponse?.status;
+    throw new HfInferenceError(`HF Inference ${modelId}: ${msg}`, status);
   }
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new HfInferenceError(
-      `HF Inference ${modelId} returned ${res.status} ${res.statusText}: ${body.slice(0, 200)}`,
-      res.status,
-    );
-  }
-
-  const json = (await res.json()) as unknown;
-  if (!Array.isArray(json)) {
+  if (!Array.isArray(result)) {
     throw new HfInferenceError(
       `HF Inference ${modelId} returned unexpected shape (expected array of {label,score}).`,
     );
   }
 
-  return json
+  return result
     .filter(
       (item): item is HfClassification =>
         typeof item === 'object' &&
