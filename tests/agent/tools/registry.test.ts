@@ -2,13 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { resolveTools, listAvailableTools } from '../../../src/agent/tools';
 
 describe('resolveTools', () => {
-  it('lists all built-in tool names', () => {
-    expect(listAvailableTools().sort()).toEqual([
-      'calculator',
-      'echo',
-      'extract_image_exif',
-      'get_current_time',
-    ]);
+  it('lists the core built-in tool names', () => {
+    // Use arrayContaining so adding new tools doesn't churn this test.
+    expect(listAvailableTools()).toEqual(
+      expect.arrayContaining([
+        'calculator',
+        'echo',
+        'extract_image_exif',
+        'get_current_time',
+        'verify_c2pa_credentials',
+      ]),
+    );
   });
 
   it('resolves only the requested tools, preserving order', () => {

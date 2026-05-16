@@ -3,6 +3,7 @@ import { echoTool } from './echo';
 import { getCurrentTimeTool } from './get-current-time';
 import { calculatorTool } from './calculator';
 import { extractImageExifTool } from './extract-image-exif';
+import { createVerifyC2paTool } from './verify-c2pa-credentials';
 
 // A tool factory takes an optional per-tool config slice (from
 // `tools.config.<tool_name>` in agent.config.yaml) and returns a ready-to-use
@@ -14,6 +15,7 @@ const REGISTRY: Record<string, ToolFactory> = {
   get_current_time: () => getCurrentTimeTool,
   calculator: () => calculatorTool,
   extract_image_exif: () => extractImageExifTool,
+  verify_c2pa_credentials: (cfg) => createVerifyC2paTool(cfg),
 };
 
 export function resolveTools(
