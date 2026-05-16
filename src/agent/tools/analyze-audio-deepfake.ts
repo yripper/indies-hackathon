@@ -1,0 +1,91 @@
+import { tool } from '@langchain/core/tools';
+import { z } from 'zod/v3';
+import { env } from '../../config/env';
+import { getCurrentConversationId, getProgressSender } from '../context';
+import { takePendingAudio } from '../../transport/audio-cache';
+import { analyzeAudio } from '../../integrations/reality-defender';
+
+// Tool returns prose for the LLM to embed in its reply. The three-tier framing
+// rule lives here (not in the system prompt) because it depends on the numeric
+// score returned by the detector — keeping it in code prevents the LLM from
+// "softening" the verdict on its own.
+function formatVerdict(tier: 'real' | 'uncertain' | 'fake', score: number, durationSec: number): string {
+  const pct = Math.round(score * 100);
+  const dur = durationSec > 0 ? `${durationSec}s` : 'audio recibido';
+  if (tier === 'fake') {
+    return [
+      `RESULTADO: este ${dur} tiene fuertes señales de ser generado por IA (confianza ${pct}%).`,
+      `Recomendación: NO confíes en este audio. Si alguien te pidió plata, una clave o información sensible, contactá a esa persona por otro canal (llamada directa al número conocido, mensaje a otro familiar) antes de hacer nada. Si ya transferiste, llamá al banco ahora.`,
+    ].join('\n\n');
+  }
+  if (tier === 'uncertain') {
+    return [
+      `RESULTADO: el detector no está seguro (señal ${pct}%, zona gris).`,
+      `Recomendación: no asumas que es real ni que es falso. Verificá el contenido por otro canal — llamá directamente al número de la persona o pedile que te mande otro mensaje con una palabra acordada de antemano (clave familiar).`,
+    ].join('\n\n');
+  }
+  return [
+    `RESULTADO: este ${dur} parece auténtico (señal de IA ${pct}%, baja).`,
+    `Igual te recomiendo: si el audio te pide plata, una clave o algo urgente, verificá por otro canal antes de actuar. Los detectores no son perfectos.`,
+  ].join('\n\n');
+}
+
+export const analyzeAudioDeepfakeTool = tool(
+  async () => {
+    console.log('[tool:analyze_audio] ▶ invoked');
+    // ALS stores the WhatsApp JID (customerPhone), which is the same key the
+    // audio cache uses. The variable is named "conversationId" historically
+    // but it's the JID, not the DB UUID.
+    const convKey = getCurrentConversationId();
+    if (!convKey) {
+      console.warn('[tool:analyze_audio] no conversation key in AsyncLocalStorage — bailing');
+      return 'Error interno: no pude identificar la conversación. Reenviame el audio de nuevo.';
+    }
+    console.log(`[tool:analyze_audio] jid=${convKey}`);
+
+    const pending = takePendingAudio(convKey);
+    if (!pending) {
+      console.log('[tool:analyze_audio] cache MISS — no pending audio for this conversation');
+      return 'No encuentro un audio reciente para analizar. Reenviame el audio (o respondé al audio mencionándome) y volvé a pedirme análisis.';
+    }
+    console.log(
+      `[tool:analyze_audio] cache HIT: bytes=${pending.buffer.length} mime="${pending.mimetype}" dur=${pending.durationSec}s`,
+    );
+
+    // Reality Defender's audio detection takes ~7-10s. Without a progress
+    // ping the user sits in silence for >10s while the LLM call + RD round-
+    // trip both run. Send a quick WhatsApp message before the RD call so
+    // they see something is happening. Failure to send is non-fatal.
+    const sendProgress = getProgressSender();
+    if (sendProgress) {
+      console.log('[tool:analyze_audio] → sending progress message');
+      sendProgress('🔍 Analizando audio con Reality Defender... dame unos segundos.').catch(
+        (err) => console.warn(`[tool:analyze_audio] progress send failed: ${err}`),
+      );
+    }
+
+    try {
+      const t0 = Date.now();
+      const verdict = await analyzeAudio(env.REALITY_DEFENDER_API_KEY, {
+        buffer: pending.buffer,
+        mimetype: pending.mimetype,
+      });
+      const dt = Date.now() - t0;
+      console.log(
+        `[tool:analyze_audio] ◀ verdict in ${dt}ms: tier=${verdict.tier} score=${verdict.score.toFixed(3)} rawStatus=${verdict.rawStatus} models=${verdict.models.length}`,
+      );
+      return formatVerdict(verdict.tier, verdict.score, pending.durationSec);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[tool:analyze_audio] ✗ RD call failed: ${msg}`);
+      if (err instanceof Error && err.stack) console.error(err.stack);
+      return `Error al analizar el audio con Reality Defender: ${msg}. Intentá de nuevo en unos minutos.`;
+    }
+  },
+  {
+    name: 'analyze_audio_deepfake',
+    description:
+      'Analyzes the audio that the user most recently shared in this conversation to determine if it is AI-generated (deepfake) or authentic. Only call this AFTER the user has explicitly confirmed they want the analysis (e.g., they replied "sí", "dale", "analízalo"). Never call it preemptively on receipt of an audio. Returns a Spanish-language verdict with confidence and next-step recommendations.',
+    schema: z.object({}),
+  },
+);
