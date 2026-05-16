@@ -1,8 +1,16 @@
 import type { FastifyBaseLogger } from 'fastify';
 import type { WAMessage } from '@whiskeysockets/baileys';
+import { writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import type { SessionManager } from './session-manager';
 import { putPendingAudio } from '../audio-cache';
 import { putPendingImage } from '../image-cache';
+import { putPendingVideo } from '../video-cache';
+import { alreadySeen } from '../dedup-store';
+import { unwrapMessage } from './unwrap-message';
+
+export { unwrapMessage } from './unwrap-message';
 
 export type ConnectInput = {
   sessionsDir: string;
@@ -34,18 +42,13 @@ type PendingImageDispatch = {
 };
 const pendingImageDispatches = new Map<string, PendingImageDispatch>();
 
-const SEEN_MESSAGE_IDS_MAX = 1000;
-const seenMessageIds = new Set<string>();
-function alreadySeen(id: string | null | undefined): boolean {
-  if (!id) return false;
-  if (seenMessageIds.has(id)) return true;
-  seenMessageIds.add(id);
-  if (seenMessageIds.size > SEEN_MESSAGE_IDS_MAX) {
-    const oldest = seenMessageIds.values().next().value;
-    if (oldest) seenMessageIds.delete(oldest);
-  }
-  return false;
-}
+const VIDEO_DEBOUNCE_MS = 1500;
+type PendingVideoDispatch = {
+  timer: NodeJS.Timeout;
+  pushName: string;
+};
+const pendingVideoDispatches = new Map<string, PendingVideoDispatch>();
+
 
 export async function connectClient(input: ConnectInput): Promise<void> {
   await input.sessionManager.createSession({
@@ -60,7 +63,7 @@ export async function connectClient(input: ConnectInput): Promise<void> {
         const remoteJid = m.key.remoteJid;
         if (!remoteJid) continue;
 
-        if (alreadySeen(m.key.id)) {
+        if (alreadySeen(m.key.id, remoteJid)) {
           continue;
         }
 
@@ -108,6 +111,15 @@ export async function connectClient(input: ConnectInput): Promise<void> {
           continue;
         }
 
+        const videoRef = extractVideo(m);
+        if (videoRef) {
+          console.log(`[wa] video detected: source=${videoRef.source} mime="${videoRef.mimetype}"`);
+          handleVideo(input, m, remoteJid, videoRef).catch((err) => {
+            console.error(`[wa] ✗ video handling failed: ${err instanceof Error ? err.message : err}`);
+          });
+          continue;
+        }
+
         const text = extractText(m.message);
         if (!text) {
           console.log('[wa] drop: no extractable text and no audio');
@@ -145,6 +157,18 @@ export async function connectClient(input: ConnectInput): Promise<void> {
           continue;
         }
 
+        // Check pending video dispatch (same pattern as image)
+        const pendingVid = pendingVideoDispatches.get(remoteJid);
+        if (pendingVid) {
+          clearTimeout(pendingVid.timer);
+          pendingVideoDispatches.delete(remoteJid);
+          console.log(`[wa] merging pending video with follow-up text: "${text.slice(0, 120)}"`);
+          input.dispatchMessage(remoteJid, customerName, text).catch((err) => {
+            console.error(`[wa] ✗ dispatchMessage failed: ${err instanceof Error ? err.message : err}`);
+          });
+          continue;
+        }
+
         console.log(`[wa] → dispatching text: "${text.slice(0, 120).replace(/\n/g, ' ')}"`);
         input.dispatchMessage(remoteJid, customerName, text).catch((err) => {
           console.error(`[wa] ✗ dispatchMessage failed: ${err instanceof Error ? err.message : err}`);
@@ -163,7 +187,9 @@ type AudioRef = {
 };
 
 function extractAudio(m: WAMessage): AudioRef | null {
-  const direct = (m.message as { audioMessage?: { mimetype?: string; seconds?: number } | null } | null)
+  const message = unwrapMessage(m.message);
+
+  const direct = (message as { audioMessage?: { mimetype?: string; seconds?: number } | null } | null)
     ?.audioMessage;
   if (direct) {
     return {
@@ -174,7 +200,7 @@ function extractAudio(m: WAMessage): AudioRef | null {
     };
   }
 
-  const ctx = (m.message as {
+  const ctx = (message as {
     extendedTextMessage?: {
       contextInfo?: {
         stanzaId?: string | null;
@@ -267,13 +293,15 @@ type ImageRef = {
 };
 
 function extractImage(m: WAMessage): ImageRef | null {
-  const direct = (m.message as { imageMessage?: { mimetype?: string } | null } | null)
+  const message = unwrapMessage(m.message);
+
+  const direct = (message as { imageMessage?: { mimetype?: string } | null } | null)
     ?.imageMessage;
   if (direct) {
     return { download: m, mimetype: direct.mimetype ?? 'image/jpeg', source: 'direct' };
   }
 
-  const ctx = (m.message as {
+  const ctx = (message as {
     extendedTextMessage?: {
       contextInfo?: {
         stanzaId?: string | null;
@@ -339,6 +367,92 @@ async function handleImage(
   pendingImageDispatches.set(remoteJid, { timer, pushName });
 }
 
+type VideoRef = {
+  download: WAMessage;
+  mimetype: string;
+  source: 'direct' | 'quoted';
+};
+
+function extractVideo(m: WAMessage): VideoRef | null {
+  const message = unwrapMessage(m.message);
+
+  const direct = (message as { videoMessage?: { mimetype?: string } | null } | null)?.videoMessage;
+  if (direct) {
+    return { download: m, mimetype: direct.mimetype ?? 'video/mp4', source: 'direct' };
+  }
+
+  // Check quoted video
+  const ctx = (message as {
+    extendedTextMessage?: {
+      contextInfo?: {
+        stanzaId?: string | null;
+        participant?: string | null;
+        quotedMessage?: { videoMessage?: { mimetype?: string } | null } | null;
+      } | null;
+    } | null;
+  } | null)?.extendedTextMessage?.contextInfo;
+
+  const quotedVideo = ctx?.quotedMessage?.videoMessage;
+  if (!quotedVideo || !ctx?.stanzaId) return null;
+
+  const stub: WAMessage = {
+    key: { remoteJid: m.key.remoteJid, id: ctx.stanzaId, fromMe: false, participant: ctx.participant ?? undefined },
+    message: ctx.quotedMessage as WAMessage['message'],
+  } as WAMessage;
+
+  return { download: stub, mimetype: quotedVideo.mimetype ?? 'video/mp4', source: 'quoted' };
+}
+
+async function handleVideo(
+  input: ConnectInput,
+  m: WAMessage,
+  remoteJid: string,
+  video: VideoRef,
+): Promise<void> {
+  console.log(`[wa] downloading video (source=${video.source})...`);
+  const t0 = Date.now();
+  const buffer = await input.sessionManager.downloadMedia(video.download);
+  console.log(`[wa] ✓ downloaded video ${buffer.length} bytes in ${Date.now() - t0}ms`);
+
+  // Save to temp file (video tool expects a file path)
+  const ext = video.mimetype.includes('quicktime') ? 'mov' : 'mp4';
+  const tmpPath = path.join(tmpdir(), `wa_video_${Date.now()}.${ext}`);
+  await writeFile(tmpPath, buffer);
+
+  putPendingVideo(remoteJid, {
+    filePath: tmpPath,
+    mimetype: video.mimetype,
+    bytes: buffer.length,
+    fromName: m.pushName ?? '',
+    source: video.source,
+  });
+
+  const userText = extractText(m.message) ?? '';
+
+  if (userText) {
+    console.log(`[wa] video with caption → dispatching immediately: "${userText.slice(0, 120)}"`);
+    await input.dispatchMessage(remoteJid, m.pushName ?? '', userText);
+    return;
+  }
+
+  const prior = pendingVideoDispatches.get(remoteJid);
+  if (prior) {
+    clearTimeout(prior.timer);
+  }
+
+  console.log(`[wa] holding video for ${VIDEO_DEBOUNCE_MS}ms for follow-up text...`);
+  const pushName = m.pushName ?? '';
+  const timer = setTimeout(() => {
+    pendingVideoDispatches.delete(remoteJid);
+    console.log('[wa] video debounce elapsed → dispatching "(video recibido)"');
+    input.dispatchMessage(remoteJid, pushName, '(video recibido)').catch((err) => {
+      console.error(`[wa] ✗ video debounced dispatch failed: ${err instanceof Error ? err.message : err}`);
+    });
+  }, VIDEO_DEBOUNCE_MS);
+
+  pendingVideoDispatches.set(remoteJid, { timer, pushName });
+}
+
 function extractMentionedJids(message: unknown): string[] {
   const m = message as {
     extendedTextMessage?: { contextInfo?: { mentionedJid?: string[] | null } | null } | null;
@@ -347,7 +461,8 @@ function extractMentionedJids(message: unknown): string[] {
 }
 
 function extractText(message: unknown): string | null {
-  const m = message as {
+  const unwrapped = unwrapMessage(message as WAMessage['message']);
+  const m = unwrapped as {
     conversation?: string;
     extendedTextMessage?: { text?: string };
     imageMessage?: { caption?: string };

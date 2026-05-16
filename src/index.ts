@@ -16,9 +16,12 @@ import { waRoutes } from './api/wa';
 import { debugRoutes } from './api/debug';
 import { analyticsRoutes } from './api/analytics';
 import { registerShutdownHandlers } from './shutdown';
+import { initDedupStore } from './transport/dedup-store';
 
 async function main(): Promise<void> {
   const app = Fastify({ logger: true });
+
+  initDedupStore(db);
 
   const agentConfig = loadAgentConfig(env.AGENT_CONFIG_PATH);
   const llm = buildLlm(agentConfig.provider);

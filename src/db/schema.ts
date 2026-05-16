@@ -128,6 +128,16 @@ export const audioAnalyses = pgTable(
   ],
 );
 
+export const seenMessageIds = pgTable(
+  'seen_message_ids',
+  {
+    waMessageId: text('wa_message_id').primaryKey(),
+    jid: text('jid').notNull(),
+    seenAt: timestamp('seen_at').defaultNow().notNull(),
+  },
+  (table) => [index('seen_message_ids_seen_at_idx').on(table.seenAt)],
+);
+
 export const imageAnalyses = pgTable(
   'image_analyses',
   {
