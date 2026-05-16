@@ -197,6 +197,37 @@ Examples:
 
 ---
 
+## Verticals: switching to the image-detection bot
+
+The default `agent.config.yaml` is a generic helper. To run the
+**anti-deepfake image verification** vertical, point `AGENT_CONFIG_PATH`
+at the bundled `agent.image-bot.yaml`:
+
+```bash
+# in .env
+AGENT_CONFIG_PATH=./agent.image-bot.yaml
+HF_API_TOKEN=hf_...          # https://huggingface.co/settings/tokens (free tier)
+```
+
+That vertical enables five image-analysis tools, all operating on a public
+image URL the user sends through WhatsApp:
+
+| Tool | What it does | External call |
+|---|---|---|
+| `compute_perceptual_hash` | PDQ hash + local blocklist lookup (privacy-preserving) | none |
+| `verify_c2pa_credentials` | Cryptographic Content Credentials check (4-state machine) | none |
+| `extract_image_exif` | EXIF/XMP metadata + heuristic interpretation | none |
+| `detect_diffusion_generation` | HF Inference vs. `Organika/sdxl-detector` | HuggingFace |
+| `detect_face_manipulation` | HF Inference vs. `prithivMLmods/deepfake-detector-model-v1` | HuggingFace |
+
+Per-tool config (trust list path, blocklist path, Hamming threshold) lives
+in `agent.image-bot.yaml` under `tools.config.<tool_name>` and is loaded
+by each tool through the factory pattern in `src/agent/tools/index.ts`.
+
+Trust list seed is at `config/c2pa-trust-list.yaml` (versioned). Blocklist
+is at `config/blocklist.jsonl` (gitignored — real victim-reported hashes
+are sensitive); see `config/blocklist.example.jsonl` for the schema.
+
 ## Switching providers (no code changes)
 
 | Want | `agent.config.yaml` | `.env` |
