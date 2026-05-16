@@ -161,6 +161,24 @@ async function handleIncomingMessageInner(
     ephemeralSystemNote = `Contexto interno actualizado para este turno: hay una imagen pendiente de análisis en esta conversación (mime=${pending.mimetype}, ${pending.bytes} bytes), lista para analizar con la herramienta analyze_image_deepfake. Origen: ${sourceDesc}. Aplicá las reglas de tu system prompt para imagen pendiente.`;
   }
 
+  // MiniMax-M2 anchors on the literal user-message text and ignores
+  // system-prompt hints when the caption is a question like "¿es esta imagen
+  // real?" — it replies "no veo la imagen" even though the image is cached.
+  // Appending a per-turn marker to the last HumanMessage gives every provider
+  // the concrete in-message signal that v0 carried as "[Imagen adjunta: URL]".
+  // DB history stays untouched; only the in-flight replay carries the marker.
+  const replayMessages = buildReplayMessages(history);
+  if (pending && replayMessages.length > 0) {
+    const lastIdx = replayMessages.length - 1;
+    const last = replayMessages[lastIdx];
+    if (last instanceof HumanMessage && typeof last.content === 'string') {
+      const kb = Math.max(1, Math.round(pending.bytes / 1024));
+      replayMessages[lastIdx] = new HumanMessage({
+        content: `${last.content}\n\n[adjuntó una imagen (${pending.mimetype}, ${kb} KB) lista para analyze_image_deepfake]`,
+      });
+    }
+  }
+
   const startedAt = Date.now();
   try {
     // ALS carries the JID (for the tool's cache lookup), the ephemeral
@@ -186,7 +204,7 @@ async function handleIncomingMessageInner(
       () =>
         Promise.race([
           deps.graph.invoke(
-            { messages: buildReplayMessages(history) },
+            { messages: replayMessages },
             { configurable: { thread_id: run.id } },
           ),
           timeoutPromise<unknown>(deps.config.limits.per_message_timeout_ms),
