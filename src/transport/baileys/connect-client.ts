@@ -1,7 +1,7 @@
 import type { FastifyBaseLogger } from 'fastify';
 import { downloadMediaMessage, type WAMessage } from '@whiskeysockets/baileys';
 import type { SessionManager } from './session-manager';
-import { putPendingImage } from '../image-cache';
+import { putPendingImage, peekPendingImage } from '../image-cache';
 
 export type ConnectInput = {
   sessionsDir: string;
@@ -71,12 +71,18 @@ export async function connectClient(input: ConnectInput): Promise<void> {
 
         const imageRef = extractImage(m);
 
-        // Groups: only react to image messages. Text-only group traffic is
-        // ignored entirely (no @mention support yet — would spam in busy
-        // groups otherwise).
+        // Groups: react to images AND to text follow-ups while an image is
+        // still cached for this group JID. That covers the user's reply to
+        // the bot's own "¿quieres que la analice?" prompt without enabling a
+        // free-for-all text bot in busy groups. Plain group chatter (no
+        // pending image) stays silently ignored.
         if (isGroup && !imageRef) {
-          input.log.debug({ remoteJid }, 'wa: drop group text (image-only mode)');
-          continue;
+          const hasPendingImage = peekPendingImage(remoteJid) !== null;
+          if (!hasPendingImage) {
+            input.log.debug({ remoteJid }, 'wa: drop group text (no pending image)');
+            continue;
+          }
+          input.log.info({ remoteJid }, 'wa: group text allowed (pending image in cache)');
         }
 
         if (imageRef) {
