@@ -18,19 +18,41 @@ export async function connectClient(input: ConnectInput): Promise<void> {
     onConnected: input.onConnected,
     onDisconnected: input.onDisconnected,
     onMessage: (upsert) => {
+      input.log.info({ count: upsert.messages.length, type: upsert.type }, 'baileys upsert');
       for (const m of upsert.messages) {
-        if (!m.message) continue;
-        if (m.key.fromMe) continue;
         const remoteJid = m.key.remoteJid;
-        if (!remoteJid) continue;
-        // v0: only direct messages (@s.whatsapp.net). Skip groups/broadcast/status/lid.
-        if (!remoteJid.endsWith('@s.whatsapp.net')) continue;
+        const fromMe = m.key.fromMe;
+        const msgTypes = m.message ? Object.keys(m.message) : [];
+        input.log.info({ remoteJid, fromMe, pushName: m.pushName, msgTypes }, 'baileys message');
+
+        if (!m.message) {
+          input.log.info('skip: no m.message');
+          continue;
+        }
+        if (fromMe) {
+          input.log.info('skip: fromMe');
+          continue;
+        }
+        if (!remoteJid) {
+          input.log.info('skip: no remoteJid');
+          continue;
+        }
+        // Accept DMs (@s.whatsapp.net) and Baileys 7 @lid identifiers (privacy-mode users)
+        const isDm = remoteJid.endsWith('@s.whatsapp.net') || remoteJid.endsWith('@lid');
+        if (!isDm) {
+          input.log.info({ remoteJid }, 'skip: not a DM (group/broadcast/status)');
+          continue;
+        }
 
         const text = extractText(m.message);
-        if (!text) continue;
+        if (!text) {
+          input.log.info({ msgTypes }, 'skip: no text extracted');
+          continue;
+        }
 
         const customerPhone = remoteJid;
         const customerName = m.pushName ?? '';
+        input.log.info({ customerPhone, customerName, textPreview: text.slice(0, 60) }, 'dispatching message');
         input.dispatchMessage(customerPhone, customerName, text).catch((err) => {
           input.log.error({ err }, 'dispatchMessage failed');
         });

@@ -1,6 +1,6 @@
 import { tool } from '@langchain/core/tools';
-import type { StructuredToolInterface } from '@langchain/core/tools';
-import { z } from 'zod';
+// Zod v3 compat for langchain-openai tool conversion (see echo.ts).
+import { z } from 'zod/v3';
 
 // Only digits, basic operators, parens, decimal point, and whitespace are allowed.
 // This rejects exponentiation (**), letters, semicolons, etc.
@@ -84,36 +84,23 @@ function evaluate(expression: string): number {
   return result;
 }
 
-const calculatorSchema = z.object({
-  expression: z.string().describe('e.g. "2 + 2 * 3"'),
-});
-
-// Langchain @langchain/core targets zod v3 while this project uses zod v4.
-// TS6 strict overload resolution does not recognize zod v4's $ZodObject as
-// satisfying the ZodObjectV3 overload, so we cast to preserve the string output
-// type. The schema is still validated at call time by langchain's tool() internals.
-async function calculatorImpl(input: unknown): Promise<string> {
-  const { expression } = calculatorSchema.parse(input);
-  if (!ALLOWED.test(expression)) {
-    throw new Error(
-      'Expression contains disallowed characters. Allowed: digits, + - * / ( ) and spaces.',
-    );
-  }
-  const value = evaluate(expression);
-  // Return integer strings without decimal noise; floats trimmed to at most 10 decimal places
-  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(10)));
-}
-
-type CalculatorTool = StructuredToolInterface & {
-  invoke(input: { expression: string }): Promise<string>;
-};
-
 export const calculatorTool = tool(
-  calculatorImpl as Parameters<typeof tool>[0],
+  async ({ expression }) => {
+    if (!ALLOWED.test(expression)) {
+      throw new Error(
+        'Expression contains disallowed characters. Allowed: digits, + - * / ( ) and spaces.',
+      );
+    }
+    const value = evaluate(expression);
+    // Return integer strings without decimal noise; floats trimmed to at most 10 decimal places.
+    return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(10)));
+  },
   {
     name: 'calculator',
     description:
       'Evaluate a basic arithmetic expression with +, -, *, /, and parentheses. No exponentiation.',
-    schema: calculatorSchema,
+    schema: z.object({
+      expression: z.string().describe('e.g. "2 + 2 * 3"'),
+    }),
   },
-) as unknown as CalculatorTool;
+);

@@ -1,27 +1,16 @@
 import { tool } from '@langchain/core/tools';
-import type { StructuredToolInterface } from '@langchain/core/tools';
-import { z } from 'zod';
-
-const echoSchema = z.object({
-  text: z.string().describe('the text to echo back'),
-});
-
-// Langchain @langchain/core targets zod v3 while this project uses zod v4.
-// TS6 strict overload resolution does not recognize zod v4's $ZodObject as
-// satisfying the ZodObjectV3 overload, so we cast to preserve the string output
-// type. The schema is still validated at call time by langchain's tool() internals.
-async function echoImpl(input: unknown): Promise<string> {
-  const { text } = echoSchema.parse(input);
-  return text;
-}
-
-type EchoTool = StructuredToolInterface & { invoke(input: { text: string }): Promise<string> };
+// Zod v3 compat: @langchain/openai 0.3 routes tool schemas through openai SDK's
+// bundled Zod-3-only zod-to-json-schema. Zod v3 syntax via this subpath works
+// transparently; the rest of the project stays on Zod 4.
+import { z } from 'zod/v3';
 
 export const echoTool = tool(
-  echoImpl as Parameters<typeof tool>[0],
+  async ({ text }) => text,
   {
     name: 'echo',
     description: 'Echo back the input text verbatim. Useful for sanity-checking tool dispatch.',
-    schema: echoSchema,
+    schema: z.object({
+      text: z.string().describe('the text to echo back'),
+    }),
   },
-) as unknown as EchoTool;
+);
