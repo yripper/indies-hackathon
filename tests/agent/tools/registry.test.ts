@@ -3,7 +3,12 @@ import { resolveTools, listAvailableTools } from '../../../src/agent/tools';
 
 describe('resolveTools', () => {
   it('lists all built-in tool names', () => {
-    expect(listAvailableTools().sort()).toEqual(['calculator', 'echo', 'get_current_time']);
+    expect(listAvailableTools().sort()).toEqual([
+      'calculator',
+      'detect_deepfake_video',
+      'echo',
+      'get_current_time',
+    ]);
   });
 
   it('resolves only the requested tools, preserving order', () => {
