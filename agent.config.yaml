@@ -5,9 +5,14 @@ agent:
     When you need information you don't have, use available tools.
     Keep responses concise — under 3 short paragraphs.
 
+# Provider switching cheatsheet:
+#   - OpenAI:    name=openai, model=gpt-5.4-mini, leave OPENAI_BASE_URL empty in .env
+#   - MiniMax:   name=openai, model=MiniMax-M2, set OPENAI_BASE_URL=https://api.minimax.io/v1
+#                and put the MiniMax key in OPENAI_API_KEY
+#   - Anthropic: name=anthropic, model=claude-sonnet-4-6, set ANTHROPIC_API_KEY
 provider:
   name: "openai"
-  model: "gpt-5.4-mini"
+  model: "MiniMax-M2"
   temperature: 0.3
   max_tokens: 1024
 

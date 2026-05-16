@@ -64,10 +64,17 @@ export function extractTrace(state: { messages: BaseMessage[] }): TraceResult {
   }
 
   return {
-    finalText: lastTextFromAI,
+    finalText: stripReasoningTags(lastTextFromAI),
     toolCalls: Array.from(toolCallsByCallId.values()),
     iterations,
     inputTokens: usageSeen ? inputTokens : undefined,
     outputTokens: usageSeen ? outputTokens : undefined,
   };
+}
+
+// Reasoning models (MiniMax M2, DeepSeek-R1, etc.) wrap chain-of-thought in
+// <think>...</think> tags inside `content`. Strip them so the user-facing
+// reply isn't polluted by internal reasoning.
+function stripReasoningTags(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>\s*/gi, '').trim();
 }

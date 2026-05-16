@@ -10,6 +10,9 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
   ANTHROPIC_API_KEY: z.string().optional().default(''),
   OPENAI_API_KEY: z.string().optional().default(''),
+  // Override OpenAI base URL to point ChatOpenAI at an OpenAI-compatible endpoint
+  // (e.g. MiniMax: https://api.minimax.io/v1). Leave empty to use OpenAI directly.
+  OPENAI_BASE_URL: z.string().optional().default(''),
   WA_SESSION_KEY: z.string().regex(HEX_64, 'WA_SESSION_KEY must be 64 hex chars (32 bytes)'),
   SESSIONS_DIR: z.string().default('./sessions'),
   PORT: z.coerce.number().int().positive().default(3000),
