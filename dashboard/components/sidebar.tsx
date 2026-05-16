@@ -15,7 +15,7 @@ export function Sidebar() {
         <div>
           <div className="text-sm font-semibold leading-tight">Veritas</div>
           <div className="text-[10px] uppercase tracking-wider text-zinc-500">
-            Audio defense
+            Media defense
           </div>
         </div>
       </Link>

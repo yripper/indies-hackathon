@@ -8,8 +8,8 @@ import { agentRunsRepo } from '../db/queries/agent-runs';
 import { toolCallsRepo } from '../db/queries/tool-calls';
 import { extractTrace } from '../agent/trace';
 import { withConversation } from '../agent/context';
-import { peekPendingAudio } from './audio-cache';
-import { audioAnalysesRepo } from '../db/queries/audio-analyses';
+import { peekPendingMedia, type MediaKind } from './media-cache';
+import { mediaAnalysesRepo } from '../db/queries/media-analyses';
 
 type CompiledGraph = {
   invoke: (
@@ -30,6 +30,27 @@ export type IncomingMessage = {
   customerName: string;
   text: string;
 };
+
+// Human-readable description of the pending media, dropped into the
+// ephemeral system note so the LLM knows what it's about to analyze.
+function describePendingMedia(
+  kind: MediaKind,
+  durationSec?: number,
+  fileName?: string,
+): string {
+  if (kind === 'audio') {
+    return durationSec && durationSec > 0
+      ? `un audio de ${durationSec} segundos`
+      : 'un audio';
+  }
+  if (kind === 'video') {
+    return durationSec && durationSec > 0
+      ? `un video de ${durationSec} segundos`
+      : 'un video';
+  }
+  if (kind === 'image') return 'una imagen';
+  return fileName ? `un documento ("${fileName}")` : 'un documento';
+}
 
 function toLangChainMessage(m: Message): BaseMessage {
   if (m.role === 'user') return new HumanMessage({ content: m.content });
@@ -58,13 +79,14 @@ function assertGraphState(value: unknown): asserts value is { messages: BaseMess
   }
 }
 
-// Per-conversation tail queue. WhatsApp delivers messages async, and audio
-// uploads (which call dispatchMessage with "(audio reenviado)") can race with
-// the user's typed follow-up ("¿podés analizar?"). Without serialization both
-// peek the audio cache, both invoke the graph, both call the tool, and
-// whichever loses the consume-on-read race for takePendingAudio replies
-// "no audio cached" while the winner replies with the real verdict — the
-// user gets two messages, one of them confusing.
+// Per-conversation tail queue. WhatsApp delivers messages async, and media
+// uploads (which call dispatchMessage with "(audio reenviado)" / "(imagen
+// reenviada)" / etc.) can race with the user's typed follow-up ("¿podés
+// analizar?"). Without serialization both peek the media cache, both invoke
+// the graph, both call the tool, and whichever loses the consume-on-read
+// race for takePendingMedia replies "no media cached" while the winner
+// replies with the real verdict — the user gets two messages, one of them
+// confusing.
 //
 // We chain by JID so different conversations don't block each other.
 const conversationQueue = new Map<string, Promise<void>>();
@@ -150,24 +172,25 @@ async function handleIncomingMessageInner(
     model: deps.config.provider.model,
   });
 
-  // Peek pending audio (does not consume). MiniMax M2 rejects requests with
+  // Peek pending media (does not consume). MiniMax M2 rejects requests with
   // more than one role=system message, so instead of injecting a second
   // SystemMessage we pass the ephemeral note through ALS — agentNode appends
   // it to the static system prompt content for THIS invocation only. History
   // and DB stay clean of stale markers.
-  const pending = peekPendingAudio(msg.customerPhone);
+  const pending = peekPendingMedia(msg.customerPhone);
   let ephemeralSystemNote: string | undefined;
   if (pending) {
     const sourceDesc =
       pending.source === 'direct'
         ? 'reenvío directo del usuario'
         : 'respuesta a un mensaje (reply-tag) del grupo';
-    ephemeralSystemNote = `Contexto interno actualizado para este turno: hay un audio pendiente de ${pending.durationSec} segundos en esta conversación, listo para analizar con la herramienta analyze_audio_deepfake. Origen: ${sourceDesc}. Aplicá las reglas de tu system prompt para audio pendiente.`;
+    const mediaDesc = describePendingMedia(pending.kind, pending.durationSec, pending.fileName);
+    ephemeralSystemNote = `Contexto interno actualizado para este turno: hay ${mediaDesc} pendiente de analizar en esta conversación, listo para verificar con la herramienta analyze_media_deepfake. Origen: ${sourceDesc}. Aplicá las reglas de tu system prompt para "media pendiente".`;
     console.log(
-      `[router] pending audio detected (dur=${pending.durationSec}s source=${pending.source}) → ephemeral note prepared`,
+      `[router] pending media detected (kind=${pending.kind} dur=${pending.durationSec ?? '-'}s source=${pending.source}) → ephemeral note prepared`,
     );
   } else {
-    console.log('[router] no pending audio for this conversation');
+    console.log('[router] no pending media for this conversation');
   }
 
   const startedAt = Date.now();
@@ -181,12 +204,12 @@ async function handleIncomingMessageInner(
         conversationId: msg.customerPhone,
         ephemeralSystemNote,
         sendProgress: (text: string) => deps.send(msg.customerPhone, text),
-        // Persist structured audio analysis events as the tool reports them.
+        // Persist structured media analysis events as the tool reports them.
         // Closure binds conversation.id + run.id so the tool doesn't have to
         // know about DB ids. Errors are swallowed at the call site — a failed
         // dashboard write must not break the user-facing reply.
-        recordAudioAnalysis: async (record) => {
-          await audioAnalysesRepo.insert(deps.db, {
+        recordMediaAnalysis: async (record) => {
+          await mediaAnalysesRepo.insert(deps.db, {
             conversationId: conversation.id,
             agentRunId: run.id,
             ...record,

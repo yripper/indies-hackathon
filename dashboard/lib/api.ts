@@ -16,6 +16,15 @@ export type TierCounts = {
   fake: number;
 };
 
+export type MediaType = "audio" | "image" | "video" | "document";
+
+export type MediaTypeCounts = {
+  audio: number;
+  image: number;
+  video: number;
+  document: number;
+};
+
 export type ModelScore = {
   name: string;
   status: string;
@@ -27,10 +36,12 @@ export type OverviewResponse = {
     analyses_all_time: number;
     analyses_24h: number;
     analyses_7d: number;
-    conversations_with_audio: number;
+    conversations_with_media: number;
   };
   tier_breakdown_24h: TierCounts;
   tier_breakdown_7d: TierCounts;
+  media_type_breakdown_24h: MediaTypeCounts;
+  media_type_breakdown_7d: MediaTypeCounts;
   latency_ms: {
     p50: number | null;
     p95: number | null;
@@ -39,9 +50,11 @@ export type OverviewResponse = {
   recent: Array<{
     id: string;
     conversation_id: string;
+    media_type: MediaType;
     tier: Tier;
     score: number;
-    duration_sec: number;
+    duration_sec: number | null;
+    file_name: string | null;
     from_name: string | null;
     mimetype: string;
     source: "direct" | "quoted";
@@ -61,6 +74,7 @@ export type ConversationsListResponse = {
     updated_at: string;
     analyses_total: number;
     tier_counts: TierCounts;
+    media_type_counts: MediaTypeCounts;
     first_analysis_at: string | null;
     last_analysis_at: string | null;
   }>;
@@ -78,16 +92,19 @@ export type ConversationDetailResponse = {
   stats: {
     analyses_total: number;
     tier_counts: TierCounts;
+    media_type_counts: MediaTypeCounts;
     first_analysis_at: string | null;
     last_analysis_at: string | null;
     avg_latency_ms: number | null;
   };
   analyses: Array<{
     id: string;
+    media_type: MediaType;
     tier: Tier;
     score: number;
     raw_status: string;
-    duration_sec: number;
+    duration_sec: number | null;
+    file_name: string | null;
     bytes: number;
     mimetype: string;
     source: "direct" | "quoted";

@@ -15,6 +15,13 @@
       "when": 1778926276024,
       "tag": "0001_hot_kingpin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779000000000,
+      "tag": "0002_media_analyses",
+      "breakpoints": true
     }
   ]
 }

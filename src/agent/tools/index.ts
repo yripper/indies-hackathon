@@ -2,13 +2,13 @@ import type { StructuredToolInterface } from '@langchain/core/tools';
 import { echoTool } from './echo';
 import { getCurrentTimeTool } from './get-current-time';
 import { calculatorTool } from './calculator';
-import { analyzeAudioDeepfakeTool } from './analyze-audio-deepfake';
+import { analyzeMediaDeepfakeTool } from './analyze-media-deepfake';
 
 const REGISTRY: Record<string, StructuredToolInterface> = {
   echo: echoTool,
   get_current_time: getCurrentTimeTool,
   calculator: calculatorTool,
-  analyze_audio_deepfake: analyzeAudioDeepfakeTool,
+  analyze_media_deepfake: analyzeMediaDeepfakeTool,
 };
 
 export function resolveTools(enabled: string[]): StructuredToolInterface[] {

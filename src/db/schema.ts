@@ -83,28 +83,36 @@ export const toolCalls = pgTable(
   (table) => [index('tool_calls_run_idx').on(table.agentRunId, table.invokedAt)],
 );
 
-// Structured audio detection events. tool_calls stores the Spanish prose the
-// LLM sees; this table stores the verdict in a queryable shape (tier + score
-// + per-model breakdown + audio metadata) so the dashboard doesn't have to
-// regex Spanish text to render cards or aggregate by outcome.
-export const audioAnalyses = pgTable(
-  'audio_analyses',
+// Structured deepfake detection events for ANY media kind (audio, image,
+// video, document). tool_calls stores the Spanish prose the LLM sees; this
+// table stores the verdict in a queryable shape (tier + score + per-model
+// breakdown + media metadata) so the dashboard doesn't have to regex Spanish
+// text to render cards or aggregate by outcome.
+export const mediaAnalyses = pgTable(
+  'media_analyses',
   {
     id: uuid('id').defaultRandom().primaryKey(),
     conversationId: uuid('conversation_id')
       .notNull()
       .references(() => conversations.id, { onDelete: 'cascade' }),
     // Nullable: if the agent_run row is later purged for any reason we keep
-    // the analysis record — the audio history matters even if the run trace
+    // the analysis record — the media history matters even if the run trace
     // is gone.
     agentRunId: uuid('agent_run_id').references(() => agentRuns.id, {
       onDelete: 'set null',
     }),
 
-    // Audio metadata captured at the moment of analysis. These values are
+    // What kind of media this row analyzed. Reality Defender uses the same
+    // endpoint for all four; we keep the discriminator so the dashboard can
+    // group/filter and so the verdict prose stays media-specific.
+    mediaType: text('media_type').notNull(), // 'audio' | 'image' | 'video' | 'document'
+
+    // Media metadata captured at the moment of analysis. These values are
     // otherwise ephemeral (the in-memory cache evicts them on read), so this
-    // is the only place they're persisted.
-    durationSec: integer('duration_sec').notNull(),
+    // is the only place they're persisted. duration_sec is audio/video-only;
+    // file_name is mainly for documents (the original WhatsApp filename).
+    durationSec: integer('duration_sec'),
+    fileName: text('file_name'),
     bytes: integer('bytes').notNull(),
     mimetype: text('mimetype').notNull(),
     source: text('source').notNull(), // 'direct' | 'quoted'
@@ -123,7 +131,8 @@ export const audioAnalyses = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
-    index('audio_analyses_conv_idx').on(table.conversationId, table.createdAt),
-    index('audio_analyses_tier_idx').on(table.tier, table.createdAt),
+    index('media_analyses_conv_idx').on(table.conversationId, table.createdAt),
+    index('media_analyses_tier_idx').on(table.tier, table.createdAt),
+    index('media_analyses_type_idx').on(table.mediaType, table.createdAt),
   ],
 );

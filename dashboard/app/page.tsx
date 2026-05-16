@@ -1,11 +1,16 @@
 import Link from "next/link";
-import { getOverview, type OverviewResponse } from "@/lib/api";
+import {
+  getOverview,
+  type MediaTypeCounts,
+  type OverviewResponse,
+} from "@/lib/api";
 import { KpiCard } from "@/components/kpi-card";
 import { TierBar } from "@/components/tier-bar";
 import { TierBadge } from "@/components/tier-badge";
+import { MediaTypeBadge } from "@/components/media-type-badge";
 import {
   formatDateTime,
-  formatJid,
+  formatDuration,
   formatLatency,
   formatPercent,
   formatRelative,
@@ -44,13 +49,14 @@ export default async function OverviewPage() {
       <header className="mb-8">
         <h1 className="text-3xl font-semibold tracking-tight">Overview</h1>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          Defensa en vivo · familias chilenas protegidas contra fraude de voice clone
+          Defensa en vivo · familias chilenas protegidas contra deepfakes
+          (audio, imagen, video y documento)
         </p>
       </header>
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
-          label="Audios analizados · 24h"
+          label="Archivos analizados · 24h"
           value={data.totals.analyses_24h.toLocaleString()}
           sublabel={`${data.totals.analyses_7d.toLocaleString()} en los últimos 7 días`}
         />
@@ -62,7 +68,7 @@ export default async function OverviewPage() {
         />
         <KpiCard
           label="Familias protegidas"
-          value={data.totals.conversations_with_audio.toLocaleString()}
+          value={data.totals.conversations_with_media.toLocaleString()}
           sublabel={`${data.totals.analyses_all_time.toLocaleString()} análisis totales`}
         />
         <KpiCard
@@ -81,11 +87,21 @@ export default async function OverviewPage() {
         </Panel>
       </section>
 
+      <section className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Panel title="Tipo de media · últimas 24h">
+          <MediaTypeRow counts={data.media_type_breakdown_24h} />
+        </Panel>
+        <Panel title="Tipo de media · últimos 7d">
+          <MediaTypeRow counts={data.media_type_breakdown_7d} />
+        </Panel>
+      </section>
+
       <section className="mt-8">
-        <Panel title="Actividad reciente" subtitle="Últimos 20 audios analizados">
+        <Panel title="Actividad reciente" subtitle="Últimos 20 archivos analizados">
           {data.recent.length === 0 ? (
             <div className="rounded-md border border-dashed border-zinc-300 bg-zinc-50 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900">
-              Sin actividad reciente. Reenviá un audio al bot para empezar.
+              Sin actividad reciente. Reenviá un audio, imagen, video o
+              documento al bot para empezar.
             </div>
           ) : (
             <RecentTable rows={data.recent} />
@@ -93,6 +109,40 @@ export default async function OverviewPage() {
         </Panel>
       </section>
     </div>
+  );
+}
+
+function MediaTypeRow({ counts }: { counts: MediaTypeCounts }) {
+  const total = counts.audio + counts.image + counts.video + counts.document;
+  if (total === 0) {
+    return (
+      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        Sin análisis en esta ventana.
+      </p>
+    );
+  }
+  const items: Array<{ kind: keyof MediaTypeCounts; label: string }> = [
+    { kind: "audio", label: "Audios" },
+    { kind: "image", label: "Imágenes" },
+    { kind: "video", label: "Videos" },
+    { kind: "document", label: "Documentos" },
+  ];
+  return (
+    <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {items.map((it) => (
+        <div
+          key={it.kind}
+          className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950"
+        >
+          <dt className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            {it.label}
+          </dt>
+          <dd className="mt-0.5 font-mono text-lg font-semibold tabular-nums">
+            {counts[it.kind].toLocaleString()}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -128,9 +178,10 @@ function RecentTable({ rows }: { rows: OverviewResponse["recent"] }) {
           <tr>
             <th className="px-4 py-2.5">Cuándo</th>
             <th className="px-4 py-2.5">Familia</th>
+            <th className="px-4 py-2.5">Tipo</th>
             <th className="px-4 py-2.5">Veredicto</th>
             <th className="px-4 py-2.5">Confianza IA</th>
-            <th className="px-4 py-2.5">Duración</th>
+            <th className="px-4 py-2.5">Detalle</th>
             <th className="px-4 py-2.5">De</th>
             <th className="px-4 py-2.5">Latencia</th>
           </tr>
@@ -153,11 +204,14 @@ function RecentTable({ rows }: { rows: OverviewResponse["recent"] }) {
                 </Link>
               </td>
               <td className="px-4 py-3">
+                <MediaTypeBadge type={r.media_type} />
+              </td>
+              <td className="px-4 py-3">
                 <TierBadge tier={r.tier} size="sm" />
               </td>
               <td className="px-4 py-3 font-mono">{formatPercent(r.score, 1)}</td>
-              <td className="px-4 py-3 font-mono text-zinc-600 dark:text-zinc-300">
-                {r.duration_sec}s
+              <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">
+                {detailFor(r)}
               </td>
               <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">
                 {r.from_name || <span className="text-zinc-400">—</span>}
@@ -171,6 +225,24 @@ function RecentTable({ rows }: { rows: OverviewResponse["recent"] }) {
       </table>
     </div>
   );
+}
+
+function detailFor(r: OverviewResponse["recent"][number]): React.ReactNode {
+  if (r.media_type === "audio" || r.media_type === "video") {
+    return (
+      <span className="font-mono text-zinc-600 dark:text-zinc-300">
+        {formatDuration(r.duration_sec)}
+      </span>
+    );
+  }
+  if (r.media_type === "document") {
+    return r.file_name ? (
+      <span className="font-mono text-xs">{r.file_name}</span>
+    ) : (
+      <span className="text-zinc-400">—</span>
+    );
+  }
+  return <span className="text-zinc-400">—</span>;
 }
 
 function ApiError({ title, detail }: { title: string; detail: string }) {

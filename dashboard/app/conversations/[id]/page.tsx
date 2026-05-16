@@ -1,13 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getConversation, type ConversationDetailResponse } from "@/lib/api";
+import {
+  getConversation,
+  type ConversationDetailResponse,
+  type MediaType,
+} from "@/lib/api";
 import { KpiCard } from "@/components/kpi-card";
 import { TierBar } from "@/components/tier-bar";
 import { TierBadge } from "@/components/tier-badge";
+import { MediaTypeBadge } from "@/components/media-type-badge";
 import { ModelChips } from "@/components/model-chips";
 import {
   formatBytes,
   formatDateTime,
+  formatDuration,
   formatJid,
   formatLatency,
   formatPercent,
@@ -88,7 +94,7 @@ export default async function ConversationDetailPage({
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
-          label="Audios analizados"
+          label="Archivos analizados"
           value={stats.analyses_total.toLocaleString()}
           sublabel={
             stats.first_analysis_at
@@ -123,11 +129,19 @@ export default async function ConversationDetailPage({
         />
       </section>
 
-      <section className="mt-8 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="mb-5 text-sm font-semibold uppercase tracking-wider text-zinc-700 dark:text-zinc-200">
-          Distribución de veredictos
-        </h2>
-        <TierBar counts={stats.tier_counts} />
+      <section className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="mb-5 text-sm font-semibold uppercase tracking-wider text-zinc-700 dark:text-zinc-200">
+            Distribución de veredictos
+          </h2>
+          <TierBar counts={stats.tier_counts} />
+        </div>
+        <div className="rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <h2 className="mb-5 text-sm font-semibold uppercase tracking-wider text-zinc-700 dark:text-zinc-200">
+            Distribución por tipo de media
+          </h2>
+          <MediaTypeCountList counts={stats.media_type_counts} />
+        </div>
       </section>
 
       <section className="mt-8">
@@ -136,7 +150,7 @@ export default async function ConversationDetailPage({
         </h2>
         {analyses.length === 0 ? (
           <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-8 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900">
-            Esta familia todavía no envió ningún audio para analizar.
+            Esta familia todavía no envió ningún archivo para analizar.
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -150,15 +164,53 @@ export default async function ConversationDetailPage({
   );
 }
 
+function MediaTypeCountList({
+  counts,
+}: {
+  counts: ConversationDetailResponse["stats"]["media_type_counts"];
+}) {
+  const items: Array<{ kind: MediaType; label: string }> = [
+    { kind: "audio", label: "Audios" },
+    { kind: "image", label: "Imágenes" },
+    { kind: "video", label: "Videos" },
+    { kind: "document", label: "Documentos" },
+  ];
+  const total = items.reduce((acc, it) => acc + counts[it.kind], 0);
+  if (total === 0) {
+    return (
+      <p className="text-sm text-zinc-500 dark:text-zinc-400">Sin análisis aún.</p>
+    );
+  }
+  return (
+    <dl className="grid grid-cols-2 gap-3">
+      {items.map((it) => (
+        <div
+          key={it.kind}
+          className="flex items-center justify-between rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950"
+        >
+          <div className="flex items-center gap-2">
+            <MediaTypeBadge type={it.kind} />
+          </div>
+          <span className="font-mono text-sm font-semibold tabular-nums">
+            {counts[it.kind]}
+          </span>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function AnalysisCard({
   analysis,
 }: {
   analysis: ConversationDetailResponse["analyses"][number];
 }) {
+  const showDuration = analysis.media_type === "audio" || analysis.media_type === "video";
   return (
     <article className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:shadow dark:border-zinc-800 dark:bg-zinc-900">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
+          <MediaTypeBadge type={analysis.media_type} size="md" />
           <TierBadge tier={analysis.tier} />
           <div className="font-mono text-2xl font-bold tracking-tight">
             {formatPercent(analysis.score, 1)}
@@ -175,7 +227,12 @@ function AnalysisCard({
       </div>
 
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-xs sm:grid-cols-4">
-        <Detail label="Duración" value={`${analysis.duration_sec}s`} />
+        {showDuration && (
+          <Detail label="Duración" value={formatDuration(analysis.duration_sec)} />
+        )}
+        {analysis.file_name && (
+          <Detail label="Archivo" value={analysis.file_name} mono />
+        )}
         <Detail label="Tamaño" value={formatBytes(analysis.bytes)} />
         <Detail label="Origen" value={analysis.source === "direct" ? "Reenvío" : "Reply-tag"} />
         <Detail label="De" value={analysis.from_name || "—"} />

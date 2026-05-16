@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Veritas · audio defense for families",
+  title: "Veritas · media defense for families",
   description:
-    "Veritas dashboard — voice-clone fraud detection for Chilean families. hack@latam 2026 DEF/ACC track.",
+    "Veritas dashboard — deepfake detection for Chilean families across audio, image, video and document. hack@latam 2026 DEF/ACC track.",
 };
 
 export default function RootLayout({

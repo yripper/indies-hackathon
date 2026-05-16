@@ -43,7 +43,8 @@ export default async function ConversationsPage() {
             Sin conversaciones todavía.
           </p>
           <p className="mt-1 text-xs text-zinc-400">
-            Vinculá tu WhatsApp con <code>POST /v1/wa/connect</code> y enviá un audio para empezar.
+            Vinculá tu WhatsApp con <code>POST /v1/wa/connect</code> y enviá un
+            audio, imagen, video o documento para empezar.
           </p>
         </div>
       ) : (
@@ -65,7 +66,8 @@ function ConversationsTable({
           <tr>
             <th className="px-4 py-3">Familia</th>
             <th className="px-4 py-3">JID</th>
-            <th className="px-4 py-3 text-right">Audios</th>
+            <th className="px-4 py-3 text-right">Análisis</th>
+            <th className="px-4 py-3">Tipos de media</th>
             <th className="px-4 py-3">Veredicto</th>
             <th className="px-4 py-3">Última actividad</th>
           </tr>
@@ -98,6 +100,13 @@ function ConversationsTable({
                   {total === 0 ? (
                     <span className="text-xs text-zinc-400">—</span>
                   ) : (
+                    <MediaTypeDots counts={c.media_type_counts} />
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {total === 0 ? (
+                    <span className="text-xs text-zinc-400">—</span>
+                  ) : (
                     <div className="flex items-center gap-2 text-xs font-mono">
                       <PillDot color="emerald" count={c.tier_counts.real} title="real" />
                       <PillDot
@@ -117,6 +126,42 @@ function ConversationsTable({
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function MediaTypeDots({
+  counts,
+}: {
+  counts: ConversationsListResponse["conversations"][number]["media_type_counts"];
+}) {
+  const items: Array<{
+    kind: keyof typeof counts;
+    color: string;
+    label: string;
+    glyph: string;
+  }> = [
+    { kind: "audio", color: "bg-sky-500", label: "audios", glyph: "♫" },
+    { kind: "image", color: "bg-fuchsia-500", label: "imágenes", glyph: "▢" },
+    { kind: "video", color: "bg-orange-500", label: "videos", glyph: "▶" },
+    { kind: "document", color: "bg-zinc-500", label: "documentos", glyph: "📄" },
+  ];
+  return (
+    <div className="flex items-center gap-2 text-xs font-mono">
+      {items.map((it) => {
+        const n = counts[it.kind];
+        if (n === 0) return null;
+        return (
+          <span
+            key={it.kind}
+            className="inline-flex items-center gap-1 text-zinc-700 dark:text-zinc-300"
+            title={`${n} ${it.label}`}
+          >
+            <span className={`h-1.5 w-1.5 rounded-full ${it.color}`} />
+            {n}
+          </span>
+        );
+      })}
     </div>
   );
 }
