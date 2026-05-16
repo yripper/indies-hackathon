@@ -18,6 +18,15 @@ const EnvSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   HOST: z.string().default('0.0.0.0'),
   AGENT_CONFIG_PATH: z.string().default('./agent.config.yaml'),
+  // Reality Defender API key for the image deepfake detection tool. Required
+  // when agent config enables analyze_image_deepfake; harmless when unset
+  // (the tool returns a Spanish error on invocation).
+  REALITY_DEFENDER_API_KEY: z.string().optional().default(''),
+  // Sightengine credentials for the second-opinion AI-generated image
+  // detector. Free tier: 2k ops/month, 500/day, 1 req/s. When unset, the
+  // image tool falls back to RD-only scoring.
+  SIGHTENGINE_API_USER: z.string().optional().default(''),
+  SIGHTENGINE_API_SECRET: z.string().optional().default(''),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 });
 

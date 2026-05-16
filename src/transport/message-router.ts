@@ -1,4 +1,4 @@
-import { HumanMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
+import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { Database } from '../db/connection';
 import type { AgentConfig } from '../config/agent-config';
@@ -7,6 +7,9 @@ import { messagesRepo, type Message } from '../db/queries/messages';
 import { agentRunsRepo } from '../db/queries/agent-runs';
 import { toolCallsRepo } from '../db/queries/tool-calls';
 import { extractTrace } from '../agent/trace';
+import { withConversation } from '../agent/context';
+import { peekPendingImage } from './image-cache';
+import { imageAnalysesRepo } from '../db/queries/image-analyses';
 
 type CompiledGraph = {
   invoke: (
@@ -28,14 +31,23 @@ export type IncomingMessage = {
   text: string;
 };
 
-function toLangChainMessage(m: Message): BaseMessage {
-  if (m.role === 'user') return new HumanMessage({ content: m.content });
-  if (m.role === 'assistant') return new AIMessage({ content: m.content });
-  if (m.role === 'tool' && m.toolCallId) {
-    return new ToolMessage({ content: m.content, tool_call_id: m.toolCallId });
+// MiniMax M2 (and most OpenAI-compatible providers) rejects requests with
+// orphaned tool_call_ids or with assistant messages that carry tool_calls
+// metadata pointing to tool results that aren't in the current request. The
+// tool loop lives inside a single graph.invoke and is never replayed across
+// requests, so we strip every 'tool' and 'system' row from Postgres history
+// and emit assistants as plain text (no tool_calls metadata reattached).
+//
+// History entries with role !== 'user'|'assistant' are dropped. The graph
+// injects its own static system prompt.
+function buildReplayMessages(history: Message[]): BaseMessage[] {
+  const out: BaseMessage[] = [];
+  for (const m of history) {
+    if (m.role === 'user') out.push(new HumanMessage({ content: m.content }));
+    else if (m.role === 'assistant') out.push(new AIMessage({ content: m.content }));
+    // 'tool' and 'system' rows: skip.
   }
-  // 'system' messages from history are not replayed — the graph injects its own system prompt.
-  return new AIMessage({ content: m.content });
+  return out;
 }
 
 function timeoutPromise<T>(ms: number): Promise<T> {
@@ -55,7 +67,56 @@ function assertGraphState(value: unknown): asserts value is { messages: BaseMess
   }
 }
 
+// Per-conversation tail queue. WhatsApp delivers messages async, and an image
+// upload (which calls dispatchMessage with "(imagen recibida)") can race with
+// the user's typed follow-up ("¿podés analizar?"). Without serialization both
+// peek the image cache, both invoke the graph, both call the tool, and
+// whichever loses the consume-on-read race for takePendingImage replies
+// "no image cached" while the winner replies with the real verdict — the
+// user gets two messages, one of them confusing.
+//
+// We chain by JID so different conversations don't block each other.
+const conversationQueue = new Map<string, Promise<void>>();
+
+async function serializePerConversation<T>(
+  key: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const prior = conversationQueue.get(key);
+  let resolveMine!: () => void;
+  const myDone = new Promise<void>((r) => {
+    resolveMine = r;
+  });
+  conversationQueue.set(key, myDone);
+
+  if (prior) {
+    try {
+      await prior;
+    } catch {
+      // Swallow upstream errors — we still want our turn to run.
+    }
+  }
+
+  try {
+    return await fn();
+  } finally {
+    resolveMine();
+    if (conversationQueue.get(key) === myDone) {
+      conversationQueue.delete(key);
+    }
+  }
+}
+
 export async function handleIncomingMessage(
+  deps: MessageRouterDeps,
+  msg: IncomingMessage,
+): Promise<void> {
+  return serializePerConversation(msg.customerPhone, () =>
+    handleIncomingMessageInner(deps, msg),
+  );
+}
+
+async function handleIncomingMessageInner(
   deps: MessageRouterDeps,
   msg: IncomingMessage,
 ): Promise<void> {
@@ -85,15 +146,52 @@ export async function handleIncomingMessage(
     model: deps.config.provider.model,
   });
 
+  // Peek (does not consume) the image cache. MiniMax M2 rejects requests
+  // with more than one role=system message, so instead of injecting a second
+  // SystemMessage we pass the ephemeral note through ALS — agentNode appends
+  // it to the static system prompt content for THIS invocation only. History
+  // and DB stay clean of stale markers.
+  const pending = peekPendingImage(msg.customerPhone);
+  let ephemeralSystemNote: string | undefined;
+  if (pending) {
+    const sourceDesc =
+      pending.source === 'direct'
+        ? 'reenvío directo del usuario'
+        : 'respuesta a un mensaje (reply-tag)';
+    ephemeralSystemNote = `Contexto interno actualizado para este turno: hay una imagen pendiente de análisis en esta conversación (mime=${pending.mimetype}, ${pending.bytes} bytes), lista para analizar con la herramienta analyze_image_deepfake. Origen: ${sourceDesc}. Aplicá las reglas de tu system prompt para imagen pendiente.`;
+  }
+
   const startedAt = Date.now();
   try {
-    const rawState = await Promise.race([
-      deps.graph.invoke(
-        { messages: history.map(toLangChainMessage) },
-        { configurable: { thread_id: conversation.id } },
-      ),
-      timeoutPromise<unknown>(deps.config.limits.per_message_timeout_ms),
-    ]);
+    // ALS carries the JID (for the tool's cache lookup), the ephemeral
+    // system note (for agentNode to fold into the system prompt), the
+    // progress-sender closure (so the tool can ping "🔍 Analizando..."
+    // mid-call), and a recorder that closes over conversation.id + run.id
+    // for the DB insert. thread_id stays on the agent run id — there's no
+    // checkpointer to track it across requests, but the graph reads it
+    // for internal node correlation.
+    const rawState = await withConversation(
+      {
+        conversationId: msg.customerPhone,
+        ephemeralSystemNote,
+        sendProgress: (text: string) => deps.send(msg.customerPhone, text),
+        recordImageAnalysis: async (record) => {
+          await imageAnalysesRepo.insert(deps.db, {
+            conversationId: conversation.id,
+            agentRunId: run.id,
+            ...record,
+          });
+        },
+      },
+      () =>
+        Promise.race([
+          deps.graph.invoke(
+            { messages: buildReplayMessages(history) },
+            { configurable: { thread_id: run.id } },
+          ),
+          timeoutPromise<unknown>(deps.config.limits.per_message_timeout_ms),
+        ]),
+    );
 
     assertGraphState(rawState);
     const trace = extractTrace(rawState);
