@@ -1,0 +1,26 @@
+agent:
+  name: "test-agent"
+  system_prompt: |
+    You are a helpful agent that responds to WhatsApp messages.
+    When you need information you don't have, use available tools.
+    Keep responses concise — under 3 short paragraphs.
+
+provider:
+  name: "anthropic"
+  model: "claude-sonnet-4-6"
+  temperature: 0.3
+  max_tokens: 1024
+
+tools:
+  enabled:
+    - "get_current_time"
+    - "calculator"
+    - "echo"
+  config:
+    calculator:
+      max_precision: 10
+
+limits:
+  max_tool_iterations: 5
+  history_window: 30
+  per_message_timeout_ms: 60000
