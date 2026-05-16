@@ -26,16 +26,26 @@ describe('classifyImage', () => {
     ]);
   });
 
-  it('hands the SDK a tight ArrayBuffer derived from the input Buffer', async () => {
+  it('hands the SDK a typed Blob derived from the input Buffer', async () => {
     sdkMock.mockResolvedValueOnce([{ label: 'x', score: 1 }]);
     const buf = Buffer.from([1, 2, 3, 4]);
-    await classifyImage('any/model', buf, { token: 't' });
+    await classifyImage('any/model', buf, { token: 't', mimeType: 'image/png' });
     expect(sdkMock).toHaveBeenCalledOnce();
-    const args = sdkMock.mock.calls[0][0] as { data: ArrayBuffer; model: string; accessToken: string };
+    const args = sdkMock.mock.calls[0][0] as { data: Blob; model: string; accessToken: string };
     expect(args.model).toBe('any/model');
     expect(args.accessToken).toBe('t');
-    expect(args.data).toBeInstanceOf(ArrayBuffer);
-    expect(new Uint8Array(args.data)).toEqual(new Uint8Array([1, 2, 3, 4]));
+    expect(args.data).toBeInstanceOf(Blob);
+    expect(args.data.type).toBe('image/png');
+    expect(args.data.size).toBe(4);
+    const bytes = new Uint8Array(await args.data.arrayBuffer());
+    expect(bytes).toEqual(new Uint8Array([1, 2, 3, 4]));
+  });
+
+  it('defaults the Blob mime type to image/jpeg when not provided', async () => {
+    sdkMock.mockResolvedValueOnce([{ label: 'x', score: 1 }]);
+    await classifyImage('any/model', Buffer.from('x'), { token: 't' });
+    const args = sdkMock.mock.calls[0][0] as { data: Blob };
+    expect(args.data.type).toBe('image/jpeg');
   });
 
   it('throws when HF_API_TOKEN is missing', async () => {

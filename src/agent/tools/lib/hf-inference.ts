@@ -18,6 +18,12 @@ export interface HfClassification {
 
 export interface ClassifyImageOptions {
   token?: string;
+  /**
+   * MIME type for the image payload. Required so the SDK can set the right
+   * Content-Type header — without it the new HF router replies "No content
+   * type provided and no default one configured." Defaults to image/jpeg.
+   */
+  mimeType?: string;
 }
 
 export class HfInferenceError extends Error {
@@ -40,20 +46,20 @@ export async function classifyImage(
     );
   }
 
-  // The SDK expects Blob | ArrayBuffer for image data. Buffer.from() yields a
-  // Node Buffer (which is a Uint8Array view); slice the underlying ArrayBuffer
-  // so we hand the SDK a tight, owned ArrayBuffer with no extra padding.
-  const ab = buffer.buffer.slice(
-    buffer.byteOffset,
-    buffer.byteOffset + buffer.byteLength,
-  ) as ArrayBuffer;
+  // The SDK accepts Blob | ArrayBuffer for image data, but the new HF router
+  // requires an explicit Content-Type header. A bare ArrayBuffer carries no
+  // type and the SDK errors out with "No content type provided and no
+  // default one configured." Wrapping the buffer in a Blob with the right
+  // mime fixes it.
+  const mimeType = opts.mimeType ?? 'image/jpeg';
+  const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
 
   let result: ImageClassificationOutput;
   try {
     result = await imageClassification({
       accessToken: token,
       model: modelId,
-      data: ab,
+      data: blob,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

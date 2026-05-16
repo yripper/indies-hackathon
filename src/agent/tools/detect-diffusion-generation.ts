@@ -25,7 +25,7 @@ export async function detectDiffusionGenerationFromUrl(imageUrl: string): Promis
 
   let results;
   try {
-    results = await classifyImage(modelId, preprocessed, { contentType: 'image/jpeg' });
+    results = await classifyImage(modelId, preprocessed, { mimeType: 'image/jpeg' });
   } catch (err) {
     if (err instanceof HfInferenceError && err.status === 503) {
       return `Diffusion detector temporarily unavailable (HF cold-start, status 503 after one retry). Other signals still apply.`;
