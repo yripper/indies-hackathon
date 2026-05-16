@@ -1,5 +1,7 @@
 import type { FastifyBaseLogger } from 'fastify';
+import { downloadMediaMessage, type WAMessage } from '@whiskeysockets/baileys';
 import type { SessionManager } from './session-manager';
+import type { MediaStore } from '../media-store';
 
 export type ConnectInput = {
   sessionsDir: string;
@@ -9,6 +11,13 @@ export type ConnectInput = {
   onConnected: (phoneNumber: string, lid: string | null) => void;
   onDisconnected: () => void;
   log: FastifyBaseLogger;
+  mediaStore: MediaStore;
+  /**
+   * Base URL the agent will use to fetch attachments back from this server,
+   * e.g. "http://127.0.0.1:3000". The agent always talks to itself, so a
+   * loopback address is fine.
+   */
+  publicBaseUrl: string;
 };
 
 export async function connectClient(input: ConnectInput): Promise<void> {
@@ -34,39 +43,96 @@ export async function connectClient(input: ConnectInput): Promise<void> {
           continue;
         }
 
-        const text = extractText(m.message);
-        if (!text) {
-          input.log.warn(
-            { remoteJid, messageType, messageKeys, pushName: m.pushName },
-            'WA inbound: dropped — no text content (attachment without caption?)',
-          );
-          continue;
-        }
-
-        const customerName = m.pushName ?? '';
-        input.log.info(
-          {
-            remoteJid,
-            messageType,
-            messageKeys,
-            customerName,
-            textPreview: text.slice(0, 200),
-            textLength: text.length,
-          },
-          'WA inbound: dispatching to agent',
-        );
-        input.dispatchMessage(remoteJid, customerName, text).catch((err) => {
-          input.log.error({ err, remoteJid }, 'dispatchMessage failed');
-        });
+        void handleOne(input, m, remoteJid, messageType, messageKeys);
       }
     },
   });
 }
 
-type BaileysMessage = {
+async function handleOne(
+  input: ConnectInput,
+  m: WAMessage,
+  remoteJid: string,
+  messageType: string,
+  messageKeys: string[],
+): Promise<void> {
+  const caption = extractText(m.message);
+  const customerName = m.pushName ?? '';
+
+  // If this carries an image, download it and synthesize a URL the agent
+  // can hand to its image-detection tools.
+  const imageMimeType =
+    (m.message?.imageMessage?.mimetype as string | undefined) ?? null;
+
+  let attachmentUrl: string | null = null;
+  if (imageMimeType) {
+    try {
+      const buffer = (await downloadMediaMessage(m, 'buffer', {})) as Buffer;
+      const entry = input.mediaStore.put(buffer, imageMimeType);
+      attachmentUrl = `${input.publicBaseUrl}/v1/media/${entry.id}`;
+      input.log.info(
+        {
+          remoteJid,
+          mediaId: entry.id,
+          mimeType: imageMimeType,
+          byteLength: buffer.byteLength,
+          attachmentUrl,
+        },
+        'WA inbound: image downloaded and registered',
+      );
+    } catch (err) {
+      input.log.error(
+        { err, remoteJid, mimeType: imageMimeType },
+        'WA inbound: image download FAILED',
+      );
+    }
+  }
+
+  // Build the text we hand to the agent. If we have an attachment URL,
+  // inject it so the LLM can pass it to the tools. If the message had no
+  // caption either, synthesize one so the agent has something to act on
+  // instead of silently dropping the turn.
+  let dispatchText: string | null = null;
+  if (caption && attachmentUrl) {
+    dispatchText = `${caption}\n\n[Imagen adjunta: ${attachmentUrl}]`;
+  } else if (attachmentUrl) {
+    dispatchText = `El usuario adjuntó una imagen sin texto. Analízala usando las tools disponibles.\n\n[Imagen adjunta: ${attachmentUrl}]`;
+  } else if (caption) {
+    dispatchText = caption;
+  }
+
+  if (!dispatchText) {
+    input.log.warn(
+      { remoteJid, messageType, messageKeys, pushName: m.pushName },
+      'WA inbound: dropped — no text and no supported attachment',
+    );
+    return;
+  }
+
+  input.log.info(
+    {
+      remoteJid,
+      messageType,
+      messageKeys,
+      customerName,
+      hasAttachment: attachmentUrl !== null,
+      attachmentUrl,
+      textPreview: dispatchText.slice(0, 200),
+      textLength: dispatchText.length,
+    },
+    'WA inbound: dispatching to agent',
+  );
+  try {
+    await input.dispatchMessage(remoteJid, customerName, dispatchText);
+  } catch (err) {
+    input.log.error({ err, remoteJid }, 'dispatchMessage failed');
+  }
+}
+
+type BaileysMessageShape = {
   conversation?: string;
   extendedTextMessage?: { text?: string };
-  imageMessage?: { caption?: string };
+  imageMessage?: { caption?: string; mimetype?: string };
   videoMessage?: { caption?: string };
   audioMessage?: unknown;
   stickerMessage?: unknown;
@@ -77,7 +143,7 @@ type BaileysMessage = {
 };
 
 function detectMessageType(message: unknown): string {
-  const m = message as BaileysMessage;
+  const m = message as BaileysMessageShape;
   if (m.conversation != null) return 'text';
   if (m.extendedTextMessage != null) return 'text_extended';
   if (m.imageMessage != null) return 'image';
@@ -92,7 +158,7 @@ function detectMessageType(message: unknown): string {
 }
 
 function extractText(message: unknown): string | null {
-  const m = message as BaileysMessage;
+  const m = message as BaileysMessageShape;
   return (
     m.conversation ??
     m.extendedTextMessage?.text ??

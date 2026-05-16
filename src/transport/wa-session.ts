@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import type { FastifyBaseLogger } from 'fastify';
 import type { SessionManager } from './baileys/session-manager';
+import type { MediaStore } from './media-store';
 import { connectClient } from './baileys/connect-client';
 
 type State = {
@@ -16,6 +17,8 @@ export type WaSessionDeps = {
   sessionManager: SessionManager;
   dispatchMessage: (customerPhone: string, customerName: string, text: string) => Promise<void>;
   log: FastifyBaseLogger;
+  mediaStore: MediaStore;
+  publicBaseUrl: string;
 };
 
 export class WaSession {
@@ -51,6 +54,8 @@ export class WaSession {
           sessionManager: this.deps.sessionManager,
           dispatchMessage: this.deps.dispatchMessage,
           log: this.deps.log,
+          mediaStore: this.deps.mediaStore,
+          publicBaseUrl: this.deps.publicBaseUrl,
           onQr: (qr) => {
             this.state.lastQr = qr;
             this.deps.log.info('QR generated; expose via GET /v1/wa/status until scanned');

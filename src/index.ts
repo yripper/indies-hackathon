@@ -7,12 +7,14 @@ import { sessionCryptoFromEnv } from './security/session-crypto';
 import { SessionManager } from './transport/baileys/session-manager';
 import { createSender } from './transport/baileys/sender';
 import { WaSession } from './transport/wa-session';
+import { MediaStore } from './transport/media-store';
 import { buildLlm } from './agent/llm';
 import { buildGraph } from './agent/graph';
 import { resolveTools } from './agent/tools';
 import { handleIncomingMessage } from './transport/message-router';
 import { healthRoutes } from './api/health';
 import { waRoutes } from './api/wa';
+import { mediaRoutes } from './api/media';
 import { debugRoutes } from './api/debug';
 import { registerShutdownHandlers } from './shutdown';
 
@@ -31,6 +33,12 @@ async function main(): Promise<void> {
 
   const sessionManager = new SessionManager(sessionCryptoFromEnv(env.WA_SESSION_KEY));
   const sender = createSender(sessionManager);
+  const mediaStore = new MediaStore();
+
+  // The agent always fetches attachments from this server itself, so a
+  // loopback URL is correct regardless of HOST binding (0.0.0.0 binds all
+  // interfaces but the agent talks to localhost).
+  const publicBaseUrl = `http://127.0.0.1:${env.PORT}`;
 
   async function dispatchMessage(
     customerPhone: string,
@@ -54,11 +62,14 @@ async function main(): Promise<void> {
     sessionManager,
     dispatchMessage,
     log: app.log,
+    mediaStore,
+    publicBaseUrl,
   });
 
   await app.register(cors, { methods: ['GET', 'POST', 'OPTIONS'] });
   await app.register(healthRoutes);
   await app.register(async (instance) => waRoutes(instance, { waSession }));
+  await app.register(async (instance) => mediaRoutes(instance, { mediaStore }));
 
   if (env.NODE_ENV !== 'production') {
     await app.register(async (instance) => debugRoutes(instance, { db }));
