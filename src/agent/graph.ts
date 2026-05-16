@@ -1,4 +1,4 @@
-import { StateGraph, MessagesAnnotation, MemorySaver, END, START } from '@langchain/langgraph';
+import { StateGraph, MessagesAnnotation, END, START } from '@langchain/langgraph';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { AIMessage, SystemMessage } from '@langchain/core/messages';
@@ -48,5 +48,13 @@ export function buildGraph(input: BuildGraphInput) {
     .addConditionalEdges('agent', shouldContinue, { tools: 'tools', [END]: END })
     .addEdge('tools', 'agent');
 
-  return graph.compile({ checkpointer: new MemorySaver() });
+  // Intentionally no checkpointer. The message-router rebuilds the history
+  // from Postgres on every invocation, so persisting graph state would only
+  // cause two failure modes:
+  //   1. The iteration cap counts AIMessages across ALL prior turns and
+  //      stops the new turn's tool loop before any tool runs.
+  //   2. A turn that ends with an unresolved tool_call (e.g. cap hit before
+  //      ToolNode executes) pollutes the next turn — providers like MiniMax
+  //      reject the request with "tool call result does not follow tool call".
+  return graph.compile();
 }

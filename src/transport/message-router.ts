@@ -1,4 +1,4 @@
-import { HumanMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
+import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Database } from '../db/connection';
@@ -30,15 +30,39 @@ export type IncomingMessage = {
   text: string;
 };
 
-function toLangChainMessage(m: Message): BaseMessage {
-  if (m.role === 'user') return new HumanMessage({ content: m.content });
-  if (m.role === 'assistant') return new AIMessage({ content: m.content });
-  if (m.role === 'tool' && m.toolCallId) {
-    return new ToolMessage({ content: m.content, tool_call_id: m.toolCallId });
+/**
+ * Build the LangChain message list we send back to the LLM on each turn.
+ *
+ * Important MiniMax / OpenAI-compat constraint: providers like MiniMax-M2
+ * (error 2013, "tool call result does not follow tool call") reject any
+ * request whose history contains an assistant message with `tool_calls`
+ * that is not IMMEDIATELY followed by its `ToolMessage` results. They are
+ * effectively stateless — every request must be a self-contained
+ * conversation.
+ *
+ * Our DB stores `role: tool` rows in the same `messages` table as the
+ * audit/debug record of what happened, but we deliberately drop them when
+ * replaying history. The tool loop lives entirely within a single
+ * `graph.invoke` — the LLM sees AIMessage(tool_calls) + ToolMessage(...)
+ * sequences only inside one HTTP request, never across requests.
+ * Persisted `assistant` rows hold final text only (no `tool_calls` field),
+ * so they replay cleanly.
+ */
+function buildReplayMessages(history: Message[]): BaseMessage[] {
+  const out: BaseMessage[] = [];
+  for (const m of history) {
+    if (m.role === 'tool') continue; // never replay tool results across turns
+    if (m.role === 'system') continue; // graph injects its own system prompt
+    if (m.role === 'user') {
+      out.push(new HumanMessage({ content: m.content }));
+    } else if (m.role === 'assistant') {
+      // Reconstruct as plain text — no tool_calls metadata is reattached.
+      out.push(new AIMessage({ content: m.content }));
+    }
   }
-  // 'system' messages from history are not replayed — the graph injects its own system prompt.
-  return new AIMessage({ content: m.content });
+  return out;
 }
+
 
 function timeoutPromise<T>(ms: number): Promise<T> {
   return new Promise((_, reject) => {
@@ -101,10 +125,15 @@ export async function handleIncomingMessage(
   );
 
   try {
+    const replayMessages = buildReplayMessages(history);
     const rawState = await Promise.race([
       deps.graph.invoke(
-        { messages: history.map(toLangChainMessage) },
-        { configurable: { thread_id: conversation.id } },
+        { messages: replayMessages },
+        // A unique thread_id per invocation defends against any future
+        // checkpointer addition: even if someone re-enables a checkpointer,
+        // each turn would still start with a clean state instead of
+        // accumulating tool_calls that would later trip MiniMax 400 (2013).
+        { configurable: { thread_id: run.id } },
       ),
       timeoutPromise<unknown>(deps.config.limits.per_message_timeout_ms),
     ]);
