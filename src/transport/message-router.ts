@@ -141,6 +141,10 @@ export async function handleIncomingMessage(
 
     await deps.send(msg.customerPhone, replyText);
   } catch (err) {
+    console.error("[src/transport/message-router.ts] CAUGHT ERROR in agent loop:", err);
+    if (err instanceof Error && err.stack) {
+      console.error("[src/transport/message-router.ts] stack:", err.stack);
+    }
     const errorMessage = err instanceof Error ? err.message : String(err);
     await agentRunsRepo.fail(deps.db, run.id, errorMessage);
     await deps.send(msg.customerPhone, "Sorry, I hit an error. Try again.");
