@@ -14,6 +14,7 @@ import {
   topGeneratorLabel,
   type SightengineVerdict,
 } from '../../integrations/sightengine';
+import { checkRateLimit, recordAnalysis } from '../../rate-limit/analysis-limiter';
 
 const log = logger.child({ tool: 'analyze_image' });
 
@@ -163,6 +164,14 @@ export const analyzeImageDeepfakeTool = tool(
     }
     log.info({ bytes: pending.bytes, mime: pending.mimetype, source: pending.source }, 'cache HIT');
 
+    // Per-JID rate limit — protect the shared 50 scans/month quota
+    const rateCheck = checkRateLimit(convKey);
+    if (!rateCheck.allowed) {
+      const mins = Math.ceil((rateCheck.retryAfterSec ?? 60) / 60);
+      log.warn({ jid: convKey, retryAfterSec: rateCheck.retryAfterSec }, 'rate limited');
+      return `Has alcanzado el límite de análisis por hora (5/hora). Intentá de nuevo en ${mins} minutos.`;
+    }
+
     const sendProgress = getProgressSender();
     if (sendProgress) {
       sendProgress('🔍 Analizando imagen con Reality Defender + Sightengine... dame unos segundos.').catch(
@@ -207,6 +216,7 @@ export const analyzeImageDeepfakeTool = tool(
       }).catch((err) => log.warn({ err }, 'image_analyses insert failed'));
     }
 
+    recordAnalysis(convKey);
     return formatVerdict(tier, score, outcome.rd, outcome.se, outcome.rdError);
   },
   {

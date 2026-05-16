@@ -9,6 +9,7 @@ import {
 } from '../context';
 import { takePendingAudio } from '../../transport/audio-cache';
 import { analyzeAudio, QuotaExhaustedError } from '../../integrations/reality-defender';
+import { checkRateLimit, recordAnalysis } from '../../rate-limit/analysis-limiter';
 
 const log = logger.child({ tool: 'analyze_audio' });
 
@@ -60,6 +61,14 @@ export const analyzeAudioDeepfakeTool = tool(
       'cache HIT',
     );
 
+    // Per-JID rate limit — protect the shared 50 scans/month quota
+    const rateCheck = checkRateLimit(convKey);
+    if (!rateCheck.allowed) {
+      const mins = Math.ceil((rateCheck.retryAfterSec ?? 60) / 60);
+      log.warn({ jid: convKey, retryAfterSec: rateCheck.retryAfterSec }, 'rate limited');
+      return `Has alcanzado el límite de análisis por hora (5/hora). Intentá de nuevo en ${mins} minutos.`;
+    }
+
     // Reality Defender's audio detection takes ~7-10s. Without a progress
     // ping the user sits in silence for >10s while the LLM call + RD round-
     // trip both run. Send a quick WhatsApp message before the RD call so
@@ -108,6 +117,7 @@ export const analyzeAudioDeepfakeTool = tool(
         log.warn('no recorder in ALS — analysis not persisted');
       }
 
+      recordAnalysis(convKey);
       return formatVerdict(verdict.tier, verdict.score, pending.durationSec);
     } catch (err) {
       if (err instanceof QuotaExhaustedError) {
