@@ -13,14 +13,32 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 //    stale references on later turns) and without sending it as a second
 //    SystemMessage (which MiniMax M2 rejects with "invalid message role:
 //    system").
+//  - sendProgress / recordAudioAnalysis: pre-bound callbacks. The tool calls
+//    them with logical data — conversationId/agentRunId/DB handles are baked
+//    into closures by message-router so the tool stays pure.
+
+// Structured audio-analysis record the tool reports back to the router. Kept
+// here (not imported from db/queries) to avoid having the agent layer depend
+// on the db layer.
+export type AudioAnalysisRecord = {
+  durationSec: number;
+  bytes: number;
+  mimetype: string;
+  source: 'direct' | 'quoted';
+  fromName?: string;
+  detector: string;
+  tier: 'real' | 'uncertain' | 'fake';
+  score: number;
+  rawStatus: string;
+  modelScores?: Array<{ name: string; status: string; score: number | null }>;
+  latencyMs: number;
+};
+
 type ConversationContext = {
   conversationId: string;
   ephemeralSystemNote?: string;
-  // Pre-bound sender that ships a WhatsApp message to the current
-  // conversation's JID without the tool needing to know the JID. Used by
-  // long-running tools (e.g. analyze_audio_deepfake) to send a progress
-  // update before the slow API call, so the user doesn't sit in silence.
   sendProgress?: (text: string) => Promise<void>;
+  recordAudioAnalysis?: (record: AudioAnalysisRecord) => Promise<void>;
 };
 
 const storage = new AsyncLocalStorage<ConversationContext>();
@@ -42,4 +60,10 @@ export function getEphemeralSystemNote(): string | null {
 
 export function getProgressSender(): ((text: string) => Promise<void>) | null {
   return storage.getStore()?.sendProgress ?? null;
+}
+
+export function getAudioAnalysisRecorder():
+  | ((record: AudioAnalysisRecord) => Promise<void>)
+  | null {
+  return storage.getStore()?.recordAudioAnalysis ?? null;
 }

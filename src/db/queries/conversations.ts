@@ -44,4 +44,13 @@ export const conversationsRepo = {
       .limit(1);
     return rows[0] ?? null;
   },
+
+  async findById(db: Database, id: string): Promise<Conversation | null> {
+    const rows = await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, id))
+      .limit(1);
+    return rows[0] ?? null;
+  },
 };

@@ -1,7 +1,11 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod/v3';
 import { env } from '../../config/env';
-import { getCurrentConversationId, getProgressSender } from '../context';
+import {
+  getAudioAnalysisRecorder,
+  getCurrentConversationId,
+  getProgressSender,
+} from '../context';
 import { takePendingAudio } from '../../transport/audio-cache';
 import { analyzeAudio } from '../../integrations/reality-defender';
 
@@ -74,6 +78,31 @@ export const analyzeAudioDeepfakeTool = tool(
       console.log(
         `[tool:analyze_audio] ◀ verdict in ${dt}ms: tier=${verdict.tier} score=${verdict.score.toFixed(3)} rawStatus=${verdict.rawStatus} models=${verdict.models.length}`,
       );
+
+      // Persist the structured event for the dashboard. Fire-and-forget — a
+      // DB hiccup must not block the user-facing reply. We log warnings on
+      // failure so the operator notices a broken write.
+      const record = getAudioAnalysisRecorder();
+      if (record) {
+        record({
+          durationSec: pending.durationSec,
+          bytes: pending.buffer.length,
+          mimetype: pending.mimetype,
+          source: pending.source,
+          fromName: pending.fromName || undefined,
+          detector: 'reality-defender',
+          tier: verdict.tier,
+          score: verdict.score,
+          rawStatus: verdict.rawStatus,
+          modelScores: verdict.models,
+          latencyMs: dt,
+        }).catch((err) =>
+          console.warn(`[tool:analyze_audio] audio_analyses insert failed: ${err}`),
+        );
+      } else {
+        console.warn('[tool:analyze_audio] no recorder in ALS — analysis not persisted');
+      }
+
       return formatVerdict(verdict.tier, verdict.score, pending.durationSec);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

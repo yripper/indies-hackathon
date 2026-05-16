@@ -14,6 +14,7 @@ import { handleIncomingMessage } from './transport/message-router';
 import { healthRoutes } from './api/health';
 import { waRoutes } from './api/wa';
 import { debugRoutes } from './api/debug';
+import { analyticsRoutes } from './api/analytics';
 import { registerShutdownHandlers } from './shutdown';
 
 async function main(): Promise<void> {
@@ -58,6 +59,7 @@ async function main(): Promise<void> {
   await app.register(cors, { methods: ['GET', 'POST', 'OPTIONS'] });
   await app.register(healthRoutes);
   await app.register(async (instance) => waRoutes(instance, { waSession }));
+  await app.register(async (instance) => analyticsRoutes(instance, { db }));
 
   if (env.NODE_ENV !== 'production') {
     await app.register(async (instance) => debugRoutes(instance, { db }));
