@@ -6,6 +6,7 @@ import { extractImageExifTool } from './extract-image-exif';
 import { createVerifyC2paTool } from './verify-c2pa-credentials';
 import { createComputePerceptualHashTool } from './compute-perceptual-hash';
 import { detectDiffusionGenerationTool } from './detect-diffusion-generation';
+import { detectFaceManipulationTool } from './detect-face-manipulation';
 
 // A tool factory takes an optional per-tool config slice (from
 // `tools.config.<tool_name>` in agent.config.yaml) and returns a ready-to-use
@@ -20,6 +21,7 @@ const REGISTRY: Record<string, ToolFactory> = {
   verify_c2pa_credentials: (cfg) => createVerifyC2paTool(cfg),
   compute_perceptual_hash: (cfg) => createComputePerceptualHashTool(cfg),
   detect_diffusion_generation: () => detectDiffusionGenerationTool,
+  detect_face_manipulation: () => detectFaceManipulationTool,
 };
 
 export function resolveTools(
