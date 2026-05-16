@@ -6,8 +6,8 @@ agent:
     Keep responses concise — under 3 short paragraphs.
 
 provider:
-  name: "anthropic"
-  model: "claude-sonnet-4-6"
+  name: "openai"
+  model: "gpt-5.4-mini"
   temperature: 0.3
   max_tokens: 1024
 
