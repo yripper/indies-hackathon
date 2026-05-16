@@ -9,7 +9,7 @@ export type AudioVerdict = {
   tier: 'real' | 'uncertain' | 'fake';
   score: number;
   rawStatus: string;
-  models: Array<{ name: string; score: number | null }>;
+  models: Array<{ name: string; status: string; score: number | null }>;
 };
 
 const FAKE_THRESHOLD = 0.8;
@@ -75,6 +75,7 @@ export async function analyzeAudio(
       rawStatus: result.status ?? 'UNKNOWN',
       models: (result.models ?? []).map((m) => ({
         name: m.name,
+        status: m.status ?? 'UNKNOWN',
         score: typeof m.score === 'number' ? m.score : null,
       })),
     };

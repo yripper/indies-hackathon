@@ -9,6 +9,7 @@ import { toolCallsRepo } from '../db/queries/tool-calls';
 import { extractTrace } from '../agent/trace';
 import { withConversation } from '../agent/context';
 import { peekPendingAudio } from './audio-cache';
+import { audioAnalysesRepo } from '../db/queries/audio-analyses';
 
 type CompiledGraph = {
   invoke: (
@@ -180,6 +181,17 @@ async function handleIncomingMessageInner(
         conversationId: msg.customerPhone,
         ephemeralSystemNote,
         sendProgress: (text: string) => deps.send(msg.customerPhone, text),
+        // Persist structured audio analysis events as the tool reports them.
+        // Closure binds conversation.id + run.id so the tool doesn't have to
+        // know about DB ids. Errors are swallowed at the call site — a failed
+        // dashboard write must not break the user-facing reply.
+        recordAudioAnalysis: async (record) => {
+          await audioAnalysesRepo.insert(deps.db, {
+            conversationId: conversation.id,
+            agentRunId: run.id,
+            ...record,
+          });
+        },
       },
       () =>
         Promise.race([
