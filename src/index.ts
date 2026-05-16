@@ -43,6 +43,7 @@ async function main(): Promise<void> {
         config: agentConfig,
         graph,
         send: (to, body) => sender.send(to, body),
+        log: app.log,
       },
       { customerPhone, customerName, text },
     );

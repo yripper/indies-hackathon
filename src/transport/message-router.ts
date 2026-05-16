@@ -1,5 +1,6 @@
 import { HumanMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
+import type { FastifyBaseLogger } from 'fastify';
 import type { Database } from '../db/connection';
 import type { AgentConfig } from '../config/agent-config';
 import { conversationsRepo } from '../db/queries/conversations';
@@ -20,6 +21,7 @@ export type MessageRouterDeps = {
   config: AgentConfig;
   graph: CompiledGraph;
   send: (to: string, text: string) => Promise<void>;
+  log?: FastifyBaseLogger;
 };
 
 export type IncomingMessage = {
@@ -86,6 +88,18 @@ export async function handleIncomingMessage(
   });
 
   const startedAt = Date.now();
+  deps.log?.info(
+    {
+      conversationId: conversation.id,
+      runId: run.id,
+      customerPhone: msg.customerPhone,
+      historyDepth: history.length,
+      userTextPreview: msg.text.slice(0, 200),
+      userTextLength: msg.text.length,
+    },
+    'agent: invoking graph',
+  );
+
   try {
     const rawState = await Promise.race([
       deps.graph.invoke(
@@ -101,6 +115,26 @@ export async function handleIncomingMessage(
 
     const replyText =
       trace.finalText.length > 0 ? trace.finalText : "I wasn't able to generate a reply.";
+
+    deps.log?.info(
+      {
+        conversationId: conversation.id,
+        runId: run.id,
+        iterations: trace.iterations,
+        toolCallCount: trace.toolCalls.length,
+        toolNames: trace.toolCalls.map((tc) => tc.name),
+        toolFailures: trace.toolCalls.filter((tc) => !tc.succeeded).map((tc) => ({
+          name: tc.name,
+          error: tc.error,
+        })),
+        replyPreview: replyText.slice(0, 200),
+        replyLength: replyText.length,
+        latencyMs,
+        inputTokens: trace.inputTokens ?? null,
+        outputTokens: trace.outputTokens ?? null,
+      },
+      'agent: graph completed',
+    );
 
     await messagesRepo.create(deps.db, {
       conversationId: conversation.id,
@@ -136,6 +170,16 @@ export async function handleIncomingMessage(
     await deps.send(msg.customerPhone, replyText);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
+    deps.log?.error(
+      {
+        conversationId: conversation.id,
+        runId: run.id,
+        err,
+        errorMessage,
+        latencyMs: Date.now() - startedAt,
+      },
+      'agent: graph FAILED',
+    );
     await agentRunsRepo.fail(deps.db, run.id, errorMessage);
     await deps.send(msg.customerPhone, 'Sorry, I hit an error. Try again.');
   }
