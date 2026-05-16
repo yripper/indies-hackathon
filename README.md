@@ -211,45 +211,179 @@ Edit the two files, restart the server (`Ctrl-C` + `pnpm dev`), done.
 
 ## Adding tools
 
-To add a tool the agent can call:
+Tools are how the agent reaches the outside world: lookups, calculations, API calls, side effects. Each tool is a single TypeScript file in `src/agent/tools/` plus one line in the registry plus one line in the YAML whitelist.
 
-1. Create `src/agent/tools/<name>.ts`:
+### Where things live
 
-   ```ts
-   import { tool } from '@langchain/core/tools';
-   import { z } from 'zod/v3';   // ← see "Zod quirk" below
+```
+src/agent/tools/
+├── index.ts            ← registry: maps tool-name strings to tool implementations
+├── echo.ts             ← one tool per file
+├── get-current-time.ts
+├── calculator.ts
+└── <your-tool>.ts      ← new tools go here
 
-   export const myTool = tool(
-     async ({ foo }) => `result for ${foo}`,
-     {
-       name: 'my_tool',
-       description: 'Describe what this tool does to help the LLM decide when to call it.',
-       schema: z.object({
-         foo: z.string().describe('what foo means'),
-       }),
-     },
-   );
-   ```
+tests/agent/tools/
+├── echo.test.ts        ← matching test, one per tool
+├── get-current-time.test.ts
+├── calculator.test.ts
+└── <your-tool>.test.ts ← new tests go here
 
-2. Register it in `src/agent/tools/index.ts`:
+agent.config.yaml       ← lists which registered tools are active for the current agent
+```
 
-   ```ts
-   import { myTool } from './my-tool';
-   const REGISTRY: Record<string, StructuredToolInterface> = {
-     // ...existing tools
-     my_tool: myTool,
-   };
-   ```
+The flow at boot:
 
-3. Enable it in `agent.config.yaml`:
+1. `src/index.ts` reads `agent.config.yaml` → gets `tools.enabled` (an array of string names).
+2. Calls `resolveTools(enabled)` from `src/agent/tools/index.ts`, which looks each name up in the `REGISTRY` object and returns an array of `StructuredToolInterface` instances.
+3. Those tools are passed to `buildGraph()`, which binds them to the LLM and registers them in the LangGraph `ToolNode` for execution.
 
-   ```yaml
-   tools:
-     enabled:
-       - "my_tool"
-   ```
+A tool that isn't in `REGISTRY` will fail loud at boot (`Unknown tool in agent.config.yaml: <name>`). A registered tool that isn't in `tools.enabled` is silently inert — useful for keeping experimental tools in the codebase without exposing them.
 
-4. Add a unit test in `tests/agent/tools/<name>.test.ts`.
+### Step 1 — Write the tool
+
+Create `src/agent/tools/<kebab-name>.ts`:
+
+```ts
+import { tool } from '@langchain/core/tools';
+import { z } from 'zod/v3';   // ← see "Zod quirk" below — MUST be zod/v3
+
+/**
+ * Brief description of what the tool does. The LLM reads `description` to
+ * decide when to invoke it, so be concrete and use trigger words the user
+ * is likely to say.
+ */
+export const fetchOrderStatusTool = tool(
+  async ({ orderId }) => {
+    // Body returns a string (or anything JSON-serializable). The string
+    // becomes the ToolMessage content the LLM sees on the next loop iteration.
+    const order = await myApi.getOrder(orderId);
+    if (!order) return `No order found with id ${orderId}.`;
+    return `Order ${orderId}: status=${order.status}, eta=${order.eta}.`;
+  },
+  {
+    name: 'fetch_order_status',                // snake_case — this is what the LLM "calls"
+    description:
+      'Look up the status of a customer order by its order ID. Use when the user asks "where is my order", "did my order ship", etc.',
+    schema: z.object({
+      orderId: z
+        .string()
+        .describe('the order id, e.g. "ORD-12345"'),
+    }),
+  },
+);
+```
+
+**Naming conventions:**
+- File: `kebab-case.ts` (matches existing tool files)
+- Variable: `camelCaseTool` (exported)
+- Tool `name` field: `snake_case` (what the LLM sees and calls)
+
+**Schema rules:**
+- Use Zod v3 syntax (`z.string()`, `z.number()`, `z.object()`, `z.array()`, `.optional()`, `.describe()`)
+- Every property must have a `.describe(...)` — the description shows up in the JSON Schema sent to the LLM and dramatically improves tool-selection quality
+- Don't use `z.discriminatedUnion`, `z.intersection`, or other advanced Zod features unless you've verified the OpenAI SDK's `zod-to-json-schema` supports them
+
+**Body rules:**
+- Return a string for simplest behavior; the LLM gets it verbatim as the tool result
+- Returning structured data (object/array) works too — LangChain will `JSON.stringify` it before showing the LLM
+- Throwing an `Error` is acceptable and gets surfaced to the LLM as `"Error: <message>"` — the agent can recover or apologize
+- Don't `console.log` from inside tool bodies in production code; use the Fastify logger if you need observability
+
+### Step 2 — Register the tool
+
+Open `src/agent/tools/index.ts` and add two lines:
+
+```ts
+import { fetchOrderStatusTool } from './fetch-order-status';   // <-- 1. import
+
+const REGISTRY: Record<string, StructuredToolInterface> = {
+  echo: echoTool,
+  get_current_time: getCurrentTimeTool,
+  calculator: calculatorTool,
+  fetch_order_status: fetchOrderStatusTool,                    // <-- 2. register
+};
+```
+
+The key (`fetch_order_status`) **must match the `name` field on the tool object**. The agent looks tools up by this string.
+
+### Step 3 — Enable it in `agent.config.yaml`
+
+```yaml
+tools:
+  enabled:
+    - "get_current_time"
+    - "calculator"
+    - "echo"
+    - "fetch_order_status"      # ← add here
+  config:                       # optional per-tool config bag, not wired yet
+    fetch_order_status:
+      timeout_ms: 5000
+```
+
+Order doesn't matter. Tools not listed here are excluded from the LLM's tool list for this agent.
+
+### Step 4 — Write a test
+
+Create `tests/agent/tools/<kebab-name>.test.ts`:
+
+```ts
+import { describe, it, expect, vi } from 'vitest';
+import { fetchOrderStatusTool } from '../../../src/agent/tools/fetch-order-status';
+
+describe('fetchOrderStatusTool', () => {
+  it('returns a human-readable status string', async () => {
+    // If the tool calls an external API, mock it here with vi.mock or by
+    // exposing the dependency. For pure tools (calculator etc.) just invoke.
+    const result = await fetchOrderStatusTool.invoke({ orderId: 'ORD-1' });
+    expect(result).toMatch(/Order ORD-1/);
+  });
+
+  it('handles missing orders gracefully', async () => {
+    const result = await fetchOrderStatusTool.invoke({ orderId: 'NONE' });
+    expect(result).toMatch(/No order found/);
+  });
+
+  it('rejects invalid input via Zod', async () => {
+    // @ts-expect-error — intentionally invalid input
+    await expect(fetchOrderStatusTool.invoke({ orderId: 123 })).rejects.toThrow();
+  });
+});
+```
+
+Run just the new tool's tests:
+```bash
+pnpm test tests/agent/tools/fetch-order-status.test.ts
+```
+
+Or the whole tool suite:
+```bash
+pnpm test tests/agent/tools/
+```
+
+### Step 5 — Verify end-to-end
+
+```bash
+pnpm verify        # tsc + all tests
+pnpm dev           # restart server with the new tool active
+```
+
+Send a WhatsApp message that should trigger the tool ("where's my order ORD-1234?"). Inspect the run trace:
+
+```bash
+docker compose exec -T postgres psql -U indies -d indies \
+  -c "select tool_name, arguments, result, succeeded, latency_ms from tool_calls order by invoked_at desc limit 5;"
+```
+
+You should see one row per LLM tool call with the arguments it chose and the result your function returned.
+
+### Tool design tips
+
+- **Be specific in `description`.** "Search the web" is bad; "Search Google for current news articles published in the last 24 hours about <topic>; returns titles and URLs" is good. The LLM picks tools by reading this text.
+- **Prefer narrow tools over wide ones.** Two tools `get_weather` + `get_forecast` outperform one `weather_thing` with a mode parameter.
+- **Return strings the LLM will quote back.** If you return `"42"`, the user will see `"42"` in the reply unless the system prompt tells the model to rephrase. Return prose if you want prose.
+- **Side effects need confirmation flows.** If a tool mutates state (sends a payment, books a meeting), have it return a "ready to confirm — say YES" string and require a second tool call (`confirm_<action>`) to actually execute. The agent loop handles this naturally because the LLM sees the first result and decides whether to call the second.
+- **Don't catch errors silently.** Let them throw — the LLM will see the error and either retry with different args or apologize to the user. Hidden failures look like bugs.
 
 ### Zod quirk
 
