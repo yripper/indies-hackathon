@@ -2,6 +2,9 @@ import { writeFile, unlink, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { RealityDefender } from '@realitydefender/realitydefender';
+import { logger } from '../config/logger';
+
+const log = logger.child({ module: 'reality-defender' });
 
 export type AudioVerdict = {
   // Three-tier label derived from the score per DECISION.md's "NUNCA verdict final automático" rule.
@@ -14,6 +17,33 @@ export type AudioVerdict = {
 
 const FAKE_THRESHOLD = 0.8;
 const UNCERTAIN_THRESHOLD = 0.4;
+
+/**
+ * Thrown when Reality Defender signals the monthly free-tier quota (50 scans)
+ * has been exhausted. The tool layer catches this and returns a friendly
+ * Spanish-language explanation to the user.
+ */
+export class QuotaExhaustedError extends Error {
+  constructor() {
+    super('Reality Defender monthly quota exhausted (50 free scans/month)');
+    this.name = 'QuotaExhaustedError';
+  }
+}
+
+function isQuotaError(err: unknown): boolean {
+  if (!err) return false;
+  // HTTP status check (if the SDK exposes it)
+  if (typeof err === 'object' && err !== null) {
+    const e = err as { status?: number; statusCode?: number; code?: string; message?: string };
+    if (e.status === 429 || e.statusCode === 429) return true;
+    if (e.code === 'rate_limit_exceeded' || e.code === 'quota_exceeded') return true;
+    // Message heuristic — covers SDK wrappers that embed the reason in text
+    const msg = (e.message ?? '').toLowerCase();
+    if (msg.includes('quota') || msg.includes('rate limit') || msg.includes('limit exceeded'))
+      return true;
+  }
+  return false;
+}
 
 function tierFromScore(score: number): AudioVerdict['tier'] {
   if (score >= FAKE_THRESHOLD) return 'fake';
@@ -51,8 +81,9 @@ export async function analyzeAudio(
   const filePath = path.join(dir, `audio.${ext}`);
   await writeFile(filePath, input.buffer);
 
-  console.log(
-    `[rd] ▶ uploading ${filePath} (mime=${input.mimetype}, ${input.buffer.length} bytes)`,
+  log.info(
+    { filePath, mime: input.mimetype, bytes: input.buffer.length },
+    'uploading to Reality Defender',
   );
 
   try {
@@ -60,12 +91,13 @@ export async function analyzeAudio(
     const t0 = Date.now();
     const result = await rd.detect({ filePath });
     const dt = Date.now() - t0;
-    console.log(
-      `[rd] ◀ result in ${dt}ms: status=${result.status} score=${result.score} models=${result.models?.length ?? 0}`,
+    log.info(
+      { latencyMs: dt, status: result.status, score: result.score, models: result.models?.length ?? 0 },
+      'detection complete',
     );
     if (result.models) {
       for (const m of result.models) {
-        console.log(`[rd]   model=${m.name} status=${m.status} score=${m.score}`);
+        log.debug({ model: m.name, status: m.status, score: m.score }, 'model result');
       }
     }
     const score = typeof result.score === 'number' ? result.score : 0;
@@ -79,6 +111,14 @@ export async function analyzeAudio(
         score: typeof m.score === 'number' ? m.score : null,
       })),
     };
+  } catch (err: unknown) {
+    // Detect quota exhaustion (HTTP 429 or message containing quota keywords)
+    // and re-throw with a recognizable message so the tool can surface a
+    // user-friendly explanation instead of raw API gibberish.
+    if (isQuotaError(err)) {
+      throw new QuotaExhaustedError();
+    }
+    throw err;
   } finally {
     await unlink(filePath).catch(() => {});
   }

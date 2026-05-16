@@ -1,13 +1,16 @@
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod/v3';
 import { env } from '../../config/env';
+import { logger } from '../../config/logger';
 import {
   getAudioAnalysisRecorder,
   getCurrentConversationId,
   getProgressSender,
 } from '../context';
 import { takePendingAudio } from '../../transport/audio-cache';
-import { analyzeAudio } from '../../integrations/reality-defender';
+import { analyzeAudio, QuotaExhaustedError } from '../../integrations/reality-defender';
+
+const log = logger.child({ tool: 'analyze_audio' });
 
 // Tool returns prose for the LLM to embed in its reply. The three-tier framing
 // rule lives here (not in the system prompt) because it depends on the numeric
@@ -36,24 +39,25 @@ function formatVerdict(tier: 'real' | 'uncertain' | 'fake', score: number, durat
 
 export const analyzeAudioDeepfakeTool = tool(
   async () => {
-    console.log('[tool:analyze_audio] ▶ invoked');
+    log.info('tool invoked');
     // ALS stores the WhatsApp JID (customerPhone), which is the same key the
     // audio cache uses. The variable is named "conversationId" historically
     // but it's the JID, not the DB UUID.
     const convKey = getCurrentConversationId();
     if (!convKey) {
-      console.warn('[tool:analyze_audio] no conversation key in AsyncLocalStorage — bailing');
+      log.warn('no conversation key in AsyncLocalStorage — bailing');
       return 'Error interno: no pude identificar la conversación. Reenviame el audio de nuevo.';
     }
-    console.log(`[tool:analyze_audio] jid=${convKey}`);
+    log.info({ jid: convKey }, 'resolved conversation key');
 
     const pending = takePendingAudio(convKey);
     if (!pending) {
-      console.log('[tool:analyze_audio] cache MISS — no pending audio for this conversation');
+      log.info('cache MISS — no pending audio for this conversation');
       return 'No encuentro un audio reciente para analizar. Reenviame el audio (o respondé al audio mencionándome) y volvé a pedirme análisis.';
     }
-    console.log(
-      `[tool:analyze_audio] cache HIT: bytes=${pending.buffer.length} mime="${pending.mimetype}" dur=${pending.durationSec}s`,
+    log.info(
+      { bytes: pending.buffer.length, mime: pending.mimetype, durationSec: pending.durationSec },
+      'cache HIT',
     );
 
     // Reality Defender's audio detection takes ~7-10s. Without a progress
@@ -62,9 +66,9 @@ export const analyzeAudioDeepfakeTool = tool(
     // they see something is happening. Failure to send is non-fatal.
     const sendProgress = getProgressSender();
     if (sendProgress) {
-      console.log('[tool:analyze_audio] → sending progress message');
+      log.info('sending progress message');
       sendProgress('🔍 Analizando audio con Reality Defender... dame unos segundos.').catch(
-        (err) => console.warn(`[tool:analyze_audio] progress send failed: ${err}`),
+        (err) => log.warn({ err }, 'progress send failed'),
       );
     }
 
@@ -75,8 +79,9 @@ export const analyzeAudioDeepfakeTool = tool(
         mimetype: pending.mimetype,
       });
       const dt = Date.now() - t0;
-      console.log(
-        `[tool:analyze_audio] ◀ verdict in ${dt}ms: tier=${verdict.tier} score=${verdict.score.toFixed(3)} rawStatus=${verdict.rawStatus} models=${verdict.models.length}`,
+      log.info(
+        { latencyMs: dt, tier: verdict.tier, score: verdict.score, rawStatus: verdict.rawStatus, models: verdict.models.length },
+        'verdict received',
       );
 
       // Persist the structured event for the dashboard. Fire-and-forget — a
@@ -97,17 +102,20 @@ export const analyzeAudioDeepfakeTool = tool(
           modelScores: verdict.models,
           latencyMs: dt,
         }).catch((err) =>
-          console.warn(`[tool:analyze_audio] audio_analyses insert failed: ${err}`),
+          log.warn({ err }, 'audio_analyses insert failed'),
         );
       } else {
-        console.warn('[tool:analyze_audio] no recorder in ALS — analysis not persisted');
+        log.warn('no recorder in ALS — analysis not persisted');
       }
 
       return formatVerdict(verdict.tier, verdict.score, pending.durationSec);
     } catch (err) {
+      if (err instanceof QuotaExhaustedError) {
+        log.warn({ err }, 'quota exhausted');
+        return 'Se acabó la cuota mensual del detector de audio (50 análisis gratis por mes). El servicio se renueva el primer día del próximo mes. Mientras tanto, no puedo analizar audios — si es urgente, pedile a alguien de confianza que escuche el audio y te confirme si reconoce la voz.';
+      }
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[tool:analyze_audio] ✗ RD call failed: ${msg}`);
-      if (err instanceof Error && err.stack) console.error(err.stack);
+      log.error({ err }, 'RD call failed');
       return `Error al analizar el audio con Reality Defender: ${msg}. Intentá de nuevo en unos minutos.`;
     }
   },

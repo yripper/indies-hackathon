@@ -197,6 +197,39 @@ Examples:
 
 ---
 
+## Audio deepfake detection
+
+Detects AI-generated voice clones (ElevenLabs, Resemble, etc.) using the Reality Defender SDK. When enabled, the bot can analyze any audio message a user sends via WhatsApp and return a verdict: fake, uncertain, or real.
+
+### Enabling
+
+1. Get a free API key at [app.realitydefender.ai](https://app.realitydefender.ai) (50 scans/month on the free tier).
+2. Add to `.env`:
+   ```bash
+   REALITY_DEFENDER_API_KEY=rd_live_...
+   ```
+3. Confirm `analyze_audio_deepfake` is listed in `agent.config.yaml` under `tools.enabled` (included by default on this branch).
+
+### How it works
+
+1. **User sends an audio message** → the bot replies "¿Querés que lo analice?" (confirmation prompt).
+2. **User confirms** → bot uploads the audio to Reality Defender → returns the verdict with a confidence score.
+3. **Audio + text in the same message** (within a 1.5 s window) → the bot skips the confirmation and auto-analyzes immediately.
+
+### Free tier limits
+
+The free plan allows **50 analyses/month**, shared across audio and image scans. When the quota is exhausted the bot replies with a friendly message explaining the limit has been reached and resets next month.
+
+### Dashboard
+
+```bash
+cd dashboard && pnpm dev
+```
+
+Opens a local analytics UI with KPI cards (total scans, fake %, avg confidence), tier badges (free/pro), and a scrollable conversation history.
+
+---
+
 ## Switching providers (no code changes)
 
 | Want | `agent.config.yaml` | `.env` |
