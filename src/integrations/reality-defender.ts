@@ -4,6 +4,18 @@ import path from 'node:path';
 import { RealityDefender } from '@realitydefender/realitydefender';
 import { logger } from '../config/logger';
 
+/**
+ * Defence-in-depth: verify that a resolved file path is still within the
+ * expected directory. Prevents path traversal if an extension or filename
+ * is ever derived from untrusted input.
+ */
+function assertWithinDir(filePath: string, dir: string): void {
+  if (!path.resolve(filePath).startsWith(path.resolve(dir) + path.sep) &&
+      path.resolve(filePath) !== path.resolve(dir)) {
+    throw new Error(`Path traversal detected: ${filePath} escapes ${dir}`);
+  }
+}
+
 const log = logger.child({ module: 'reality-defender' });
 
 export type AudioVerdict = {
@@ -79,6 +91,7 @@ export async function analyzeAudio(
   const dir = await mkdtemp(path.join(tmpdir(), 'rd-'));
   const ext = extensionForMime(input.mimetype);
   const filePath = path.join(dir, `audio.${ext}`);
+  assertWithinDir(filePath, dir);
   await writeFile(filePath, input.buffer);
 
   log.info(
@@ -157,6 +170,7 @@ export async function analyzeImage(
   const dir = await mkdtemp(path.join(tmpdir(), 'rd-img-'));
   const ext = extensionForImageMime(input.mimetype);
   const filePath = path.join(dir, `image.${ext}`);
+  assertWithinDir(filePath, dir);
   await writeFile(filePath, input.buffer);
 
   log.info({ filePath, mime: input.mimetype, bytes: input.buffer.length }, 'uploading image to Reality Defender');

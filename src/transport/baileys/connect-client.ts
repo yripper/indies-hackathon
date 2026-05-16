@@ -9,6 +9,12 @@ import { putPendingImage } from '../image-cache';
 import { putPendingVideo } from '../video-cache';
 import { alreadySeen } from '../dedup-store';
 import { unwrapMessage } from './unwrap-message';
+import {
+  validateMediaSize,
+  validateMimetype,
+  sanitizePushName,
+  isMessageFlooding,
+} from '../../security/input-validation';
 
 export { unwrapMessage } from './unwrap-message';
 
@@ -64,6 +70,12 @@ export async function connectClient(input: ConnectInput): Promise<void> {
         if (!remoteJid) continue;
 
         if (alreadySeen(m.key.id, remoteJid)) {
+          continue;
+        }
+
+        // Per-JID flood protection — drop silently if exceeding rate limit
+        if (isMessageFlooding(remoteJid)) {
+          console.log(`[wa] drop: rate limit exceeded for ${remoteJid}`);
           continue;
         }
 
@@ -126,7 +138,7 @@ export async function connectClient(input: ConnectInput): Promise<void> {
           continue;
         }
 
-        const customerName = m.pushName ?? '';
+        const customerName = sanitizePushName(m.pushName);
 
         // If we're holding a pending audio dispatch for this JID (debounce
         // window open), the user's follow-up text counts as implicit consent.
@@ -237,16 +249,30 @@ async function handleAudio(
   remoteJid: string,
   audio: AudioRef,
 ): Promise<void> {
+  // MIME-type validation
+  if (!validateMimetype(audio.mimetype, 'audio')) {
+    console.log(`[wa] drop: disallowed audio mimetype "${audio.mimetype}" from ${remoteJid}`);
+    return;
+  }
+
   console.log(`[wa] downloading audio (source=${audio.source})...`);
   const t0 = Date.now();
   const buffer = await input.sessionManager.downloadMedia(audio.download);
   console.log(`[wa] ✓ downloaded ${buffer.length} bytes in ${Date.now() - t0}ms`);
 
+  // Size validation — reject oversized payloads before caching/processing
+  if (!validateMediaSize(buffer, 'audio')) {
+    console.log(`[wa] drop: audio too large (${buffer.length} bytes) from ${remoteJid}`);
+    return;
+  }
+
+  const customerName = sanitizePushName(m.pushName);
+
   putPendingAudio(remoteJid, {
     buffer,
     mimetype: audio.mimetype,
     durationSec: audio.durationSec,
-    fromName: m.pushName ?? '',
+    fromName: customerName,
     source: audio.source,
   });
   console.log(`[wa] cached pending audio for jid=${remoteJid}`);
@@ -258,7 +284,7 @@ async function handleAudio(
   // what they wanted in a single send.
   if (userText) {
     console.log(`[wa] audio came with text → dispatching immediately: "${userText.replace(/\n/g, ' ')}"`);
-    await input.dispatchMessage(remoteJid, m.pushName ?? '', userText);
+    await input.dispatchMessage(remoteJid, customerName, userText);
     return;
   }
 
@@ -272,18 +298,17 @@ async function handleAudio(
   }
 
   console.log(`[wa] holding audio for ${AUDIO_DEBOUNCE_MS}ms in case a follow-up text arrives...`);
-  const pushName = m.pushName ?? '';
   const timer = setTimeout(() => {
     pendingAudioDispatches.delete(remoteJid);
     console.log('[wa] debounce window elapsed with no follow-up → dispatching "(audio reenviado)"');
     input
-      .dispatchMessage(remoteJid, pushName, '(audio reenviado)')
+      .dispatchMessage(remoteJid, customerName, '(audio reenviado)')
       .catch((err) => {
         console.error(`[wa] ✗ debounced dispatch failed: ${err instanceof Error ? err.message : err}`);
       });
   }, AUDIO_DEBOUNCE_MS);
 
-  pendingAudioDispatches.set(remoteJid, { timer, pushName });
+  pendingAudioDispatches.set(remoteJid, { timer, pushName: customerName });
 }
 
 type ImageRef = {
@@ -328,16 +353,30 @@ async function handleImage(
   remoteJid: string,
   image: ImageRef,
 ): Promise<void> {
+  // MIME-type validation
+  if (!validateMimetype(image.mimetype, 'image')) {
+    console.log(`[wa] drop: disallowed image mimetype "${image.mimetype}" from ${remoteJid}`);
+    return;
+  }
+
   console.log(`[wa] downloading image (source=${image.source})...`);
   const t0 = Date.now();
   const buffer = await input.sessionManager.downloadMedia(image.download);
   console.log(`[wa] ✓ downloaded image ${buffer.length} bytes in ${Date.now() - t0}ms`);
 
+  // Size validation
+  if (!validateMediaSize(buffer, 'image')) {
+    console.log(`[wa] drop: image too large (${buffer.length} bytes) from ${remoteJid}`);
+    return;
+  }
+
+  const customerName = sanitizePushName(m.pushName);
+
   putPendingImage(remoteJid, {
     buffer,
     mimetype: image.mimetype,
     bytes: buffer.length,
-    fromName: m.pushName ?? '',
+    fromName: customerName,
     source: image.source,
   });
 
@@ -345,7 +384,7 @@ async function handleImage(
 
   if (userText) {
     console.log(`[wa] image with caption → dispatching immediately: "${userText.slice(0, 120)}"`);
-    await input.dispatchMessage(remoteJid, m.pushName ?? '', userText);
+    await input.dispatchMessage(remoteJid, customerName, userText);
     return;
   }
 
@@ -355,16 +394,15 @@ async function handleImage(
   }
 
   console.log(`[wa] holding image for ${IMAGE_DEBOUNCE_MS}ms for follow-up text...`);
-  const pushName = m.pushName ?? '';
   const timer = setTimeout(() => {
     pendingImageDispatches.delete(remoteJid);
     console.log('[wa] image debounce elapsed → dispatching "(imagen recibida)"');
-    input.dispatchMessage(remoteJid, pushName, '(imagen recibida)').catch((err) => {
+    input.dispatchMessage(remoteJid, customerName, '(imagen recibida)').catch((err) => {
       console.error(`[wa] ✗ image debounced dispatch failed: ${err instanceof Error ? err.message : err}`);
     });
   }, IMAGE_DEBOUNCE_MS);
 
-  pendingImageDispatches.set(remoteJid, { timer, pushName });
+  pendingImageDispatches.set(remoteJid, { timer, pushName: customerName });
 }
 
 type VideoRef = {
@@ -409,10 +447,24 @@ async function handleVideo(
   remoteJid: string,
   video: VideoRef,
 ): Promise<void> {
+  // MIME-type validation
+  if (!validateMimetype(video.mimetype, 'video')) {
+    console.log(`[wa] drop: disallowed video mimetype "${video.mimetype}" from ${remoteJid}`);
+    return;
+  }
+
   console.log(`[wa] downloading video (source=${video.source})...`);
   const t0 = Date.now();
   const buffer = await input.sessionManager.downloadMedia(video.download);
   console.log(`[wa] ✓ downloaded video ${buffer.length} bytes in ${Date.now() - t0}ms`);
+
+  // Size validation
+  if (!validateMediaSize(buffer, 'video')) {
+    console.log(`[wa] drop: video too large (${buffer.length} bytes) from ${remoteJid}`);
+    return;
+  }
+
+  const customerName = sanitizePushName(m.pushName);
 
   // Save to temp file (video tool expects a file path)
   const ext = video.mimetype.includes('quicktime') ? 'mov' : 'mp4';
@@ -423,7 +475,7 @@ async function handleVideo(
     filePath: tmpPath,
     mimetype: video.mimetype,
     bytes: buffer.length,
-    fromName: m.pushName ?? '',
+    fromName: customerName,
     source: video.source,
   });
 
@@ -431,7 +483,7 @@ async function handleVideo(
 
   if (userText) {
     console.log(`[wa] video with caption → dispatching immediately: "${userText.slice(0, 120)}"`);
-    await input.dispatchMessage(remoteJid, m.pushName ?? '', userText);
+    await input.dispatchMessage(remoteJid, customerName, userText);
     return;
   }
 
@@ -441,16 +493,15 @@ async function handleVideo(
   }
 
   console.log(`[wa] holding video for ${VIDEO_DEBOUNCE_MS}ms for follow-up text...`);
-  const pushName = m.pushName ?? '';
   const timer = setTimeout(() => {
     pendingVideoDispatches.delete(remoteJid);
     console.log('[wa] video debounce elapsed → dispatching "(video recibido)"');
-    input.dispatchMessage(remoteJid, pushName, '(video recibido)').catch((err) => {
+    input.dispatchMessage(remoteJid, customerName, '(video recibido)').catch((err) => {
       console.error(`[wa] ✗ video debounced dispatch failed: ${err instanceof Error ? err.message : err}`);
     });
   }, VIDEO_DEBOUNCE_MS);
 
-  pendingVideoDispatches.set(remoteJid, { timer, pushName });
+  pendingVideoDispatches.set(remoteJid, { timer, pushName: customerName });
 }
 
 function extractMentionedJids(message: unknown): string[] {
