@@ -1,12 +1,12 @@
-import { HumanMessage, AIMessage, ToolMessage } from "@langchain/core/messages";
-import type { BaseMessage } from "@langchain/core/messages";
-import type { Database } from "../db/connection";
-import type { AgentConfig } from "../config/agent-config";
-import { conversationsRepo } from "../db/queries/conversations";
-import { messagesRepo, type Message } from "../db/queries/messages";
-import { agentRunsRepo } from "../db/queries/agent-runs";
-import { toolCallsRepo } from "../db/queries/tool-calls";
-import { extractTrace } from "../agent/trace";
+import { HumanMessage, AIMessage, ToolMessage } from '@langchain/core/messages';
+import type { BaseMessage } from '@langchain/core/messages';
+import type { Database } from '../db/connection';
+import type { AgentConfig } from '../config/agent-config';
+import { conversationsRepo } from '../db/queries/conversations';
+import { messagesRepo, type Message } from '../db/queries/messages';
+import { agentRunsRepo } from '../db/queries/agent-runs';
+import { toolCallsRepo } from '../db/queries/tool-calls';
+import { extractTrace } from '../agent/trace';
 
 type CompiledGraph = {
   invoke: (
@@ -29,9 +29,9 @@ export type IncomingMessage = {
 };
 
 function toLangChainMessage(m: Message): BaseMessage {
-  if (m.role === "user") return new HumanMessage({ content: m.content });
-  if (m.role === "assistant") return new AIMessage({ content: m.content });
-  if (m.role === "tool" && m.toolCallId) {
+  if (m.role === 'user') return new HumanMessage({ content: m.content });
+  if (m.role === 'assistant') return new AIMessage({ content: m.content });
+  if (m.role === 'tool' && m.toolCallId) {
     return new ToolMessage({ content: m.content, tool_call_id: m.toolCallId });
   }
   // 'system' messages from history are not replayed — the graph injects its own system prompt.
@@ -46,12 +46,12 @@ function timeoutPromise<T>(ms: number): Promise<T> {
 
 function assertGraphState(value: unknown): asserts value is { messages: BaseMessage[] } {
   if (
-    typeof value !== "object" ||
+    typeof value !== 'object' ||
     value === null ||
-    !("messages" in value) ||
+    !('messages' in value) ||
     !Array.isArray((value as { messages: unknown }).messages)
   ) {
-    throw new Error("Unexpected graph output shape");
+    throw new Error('Unexpected graph output shape');
   }
 }
 
@@ -59,19 +59,17 @@ export async function handleIncomingMessage(
   deps: MessageRouterDeps,
   msg: IncomingMessage,
 ): Promise<void> {
-  console.log("here 1");
   const conversation = await conversationsRepo.findOrCreate(deps.db, {
     customerPhone: msg.customerPhone,
     customerName: msg.customerName,
   });
-  if (conversation.status !== "active") return;
+  if (conversation.status !== 'active') return;
 
   const userMsg = await messagesRepo.create(deps.db, {
     conversationId: conversation.id,
-    role: "user",
+    role: 'user',
     content: msg.text,
   });
-  console.log("here 2");
 
   const history = await messagesRepo.listRecent(
     deps.db,
@@ -79,7 +77,6 @@ export async function handleIncomingMessage(
     deps.config.limits.history_window,
   );
 
-  console.log("here 3");
   const run = await agentRunsRepo.start(deps.db, {
     conversationId: conversation.id,
     triggerMessageId: userMsg.id,
@@ -87,7 +84,6 @@ export async function handleIncomingMessage(
     provider: deps.config.provider.name,
     model: deps.config.provider.model,
   });
-  console.log("here 4");
 
   const startedAt = Date.now();
   try {
@@ -98,7 +94,6 @@ export async function handleIncomingMessage(
       ),
       timeoutPromise<unknown>(deps.config.limits.per_message_timeout_ms),
     ]);
-    console.log("here 5");
 
     assertGraphState(rawState);
     const trace = extractTrace(rawState);
@@ -109,19 +104,18 @@ export async function handleIncomingMessage(
 
     await messagesRepo.create(deps.db, {
       conversationId: conversation.id,
-      role: "assistant",
+      role: 'assistant',
       content: replyText,
     });
-    console.log("here 6");
+
     const capped = trace.iterations >= deps.config.limits.max_tool_iterations;
     await agentRunsRepo.finish(deps.db, run.id, {
-      status: capped ? "capped" : "completed",
+      status: capped ? 'capped' : 'completed',
       iterations: trace.iterations,
       inputTokens: trace.inputTokens ?? null,
       outputTokens: trace.outputTokens ?? null,
       latencyMs,
     });
-    console.log("here 7");
 
     if (trace.toolCalls.length > 0) {
       await toolCallsRepo.createMany(
@@ -141,12 +135,8 @@ export async function handleIncomingMessage(
 
     await deps.send(msg.customerPhone, replyText);
   } catch (err) {
-    console.error("[src/transport/message-router.ts] CAUGHT ERROR in agent loop:", err);
-    if (err instanceof Error && err.stack) {
-      console.error("[src/transport/message-router.ts] stack:", err.stack);
-    }
     const errorMessage = err instanceof Error ? err.message : String(err);
     await agentRunsRepo.fail(deps.db, run.id, errorMessage);
-    await deps.send(msg.customerPhone, "Sorry, I hit an error. Try again.");
+    await deps.send(msg.customerPhone, 'Sorry, I hit an error. Try again.');
   }
 }

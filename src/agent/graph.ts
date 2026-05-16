@@ -12,35 +12,16 @@ export type BuildGraphInput = {
 };
 
 export function buildGraph(input: BuildGraphInput) {
-  console.log('[src/agent/graph.ts] buildGraph start', {
-    toolCount: input.tools.length,
-    toolNames: input.tools.map((t) => t.name),
-    maxIterations: input.maxIterations,
-    hasBindTools: typeof input.llm.bindTools === 'function',
-  });
   // bindTools returns `this` in MockChatModel and a bound runnable in real LLMs.
   // We cast to BaseChatModel so invoke() is available on the result.
   const llmWithTools = input.llm.bindTools
     ? (input.llm.bindTools(input.tools) as unknown as BaseChatModel)
     : input.llm;
-  console.log('[src/agent/graph.ts] bindTools complete');
 
   async function agentNode(state: typeof MessagesAnnotation.State) {
-    console.log('[src/agent/graph.ts] agentNode enter', { stateMsgCount: state.messages.length });
     const messages = [new SystemMessage({ content: input.systemPrompt }), ...state.messages];
-    console.log('[src/agent/graph.ts] agentNode calling llm.invoke', { totalMsgs: messages.length });
-    try {
-      const response = await llmWithTools.invoke(messages);
-      console.log('[src/agent/graph.ts] agentNode llm.invoke returned', {
-        type: response?.constructor?.name,
-        contentLen: typeof response?.content === 'string' ? response.content.length : -1,
-        toolCalls: 'tool_calls' in (response ?? {}) ? (response as { tool_calls?: unknown[] }).tool_calls?.length ?? 0 : 0,
-      });
-      return { messages: [response] };
-    } catch (err) {
-      console.error('[src/agent/graph.ts] agentNode llm.invoke FAILED', err);
-      throw err;
-    }
+    const response = await llmWithTools.invoke(messages);
+    return { messages: [response] };
   }
 
   function shouldContinue(state: typeof MessagesAnnotation.State): 'tools' | typeof END {
@@ -51,8 +32,6 @@ export function buildGraph(input: BuildGraphInput) {
     // Count AI turns to enforce the iteration cap. Each agent invocation adds
     // one AIMessage, so the count equals the number of completed iterations.
     const iterationCount = state.messages.filter((m) => m instanceof AIMessage).length;
-    const decision = iterationCount >= input.maxIterations ? END : hasToolCalls ? 'tools' : END;
-    console.log('[src/agent/graph.ts] shouldContinue', { iterationCount, hasToolCalls, decision });
     if (iterationCount >= input.maxIterations) return END;
 
     return hasToolCalls ? 'tools' : END;

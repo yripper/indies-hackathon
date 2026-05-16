@@ -4,14 +4,6 @@ import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import type { AgentConfig } from '../config/agent-config';
 
 export function buildLlm(config: AgentConfig['provider']): BaseChatModel {
-  console.log('[src/agent/llm.ts] buildLlm', {
-    provider: config.name,
-    model: config.model,
-    temperature: config.temperature,
-    maxTokens: config.max_tokens,
-    anthropicKeySet: Boolean(process.env.ANTHROPIC_API_KEY),
-    openaiKeySet: Boolean(process.env.OPENAI_API_KEY),
-  });
   if (config.name === 'anthropic') {
     if (!process.env.ANTHROPIC_API_KEY) {
       throw new Error('ANTHROPIC_API_KEY is not set, but agent.config.yaml selects anthropic.');
