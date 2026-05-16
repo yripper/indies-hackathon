@@ -68,6 +68,24 @@ export class SessionManager {
     await this.socket.sendMessage(to, { text });
   }
 
+  // Own JIDs are needed to detect @mentions in group messages. WhatsApp
+  // stores the bot under two identifiers — the phone-number JID and the
+  // privacy-mode LID — and mentions can use either, so we return both.
+  // Strips the ":deviceId" suffix so the result matches the bare JIDs
+  // that show up in mentionedJid arrays.
+  getOwnJids(): { phoneJid: string | null; lidJid: string | null } {
+    if (!this.socket) return { phoneJid: null, lidJid: null };
+    const rawId = this.socket.user?.id ?? null;
+    const phoneJid = rawId
+      ? `${rawId.split(':')[0]}@${rawId.split('@')[1] ?? 's.whatsapp.net'}`
+      : null;
+    const rawLid = this.socket.user?.lid ?? null;
+    const lidJid = rawLid
+      ? `${rawLid.split(':')[0]}@${rawLid.split('@')[1] ?? 'lid'}`
+      : null;
+    return { phoneJid, lidJid };
+  }
+
   close(): void {
     if (this.socket) {
       this.socket.end(undefined);

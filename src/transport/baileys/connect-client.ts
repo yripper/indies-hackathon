@@ -71,18 +71,24 @@ export async function connectClient(input: ConnectInput): Promise<void> {
 
         const imageRef = extractImage(m);
 
-        // Groups: react to images AND to text follow-ups while an image is
-        // still cached for this group JID. That covers the user's reply to
-        // the bot's own "¿quieres que la analice?" prompt without enabling a
-        // free-for-all text bot in busy groups. Plain group chatter (no
-        // pending image) stays silently ignored.
+        // Groups: react to images, to text follow-ups while an image is
+        // still cached (user replying to the bot's own "¿analizo?" prompt),
+        // and to text that @mentions the bot. Plain group chatter that
+        // matches none of those stays silently ignored so the bot doesn't
+        // spam busy groups.
         if (isGroup && !imageRef) {
           const hasPendingImage = peekPendingImage(remoteJid) !== null;
-          if (!hasPendingImage) {
-            input.log.debug({ remoteJid }, 'wa: drop group text (no pending image)');
+          const { phoneJid, lidJid } = input.sessionManager.getOwnJids();
+          const mentioned = extractMentionedJids(m.message);
+          const isMentioned = mentioned.some((j) => j === phoneJid || j === lidJid);
+          if (!hasPendingImage && !isMentioned) {
+            input.log.debug({ remoteJid, mentioned }, 'wa: drop group text (no pending image, not mentioned)');
             continue;
           }
-          input.log.info({ remoteJid }, 'wa: group text allowed (pending image in cache)');
+          input.log.info(
+            { remoteJid, reason: isMentioned ? 'mentioned' : 'pending-image' },
+            'wa: group text allowed',
+          );
         }
 
         if (imageRef) {
@@ -244,6 +250,18 @@ async function handleImage(
   }, IMAGE_DEBOUNCE_MS);
 
   pendingImageDispatches.set(remoteJid, { timer, pushName });
+}
+
+// WhatsApp puts @mention targets in extendedTextMessage.contextInfo.mentionedJid
+// (and in imageMessage.contextInfo for captioned images, but those bypass this
+// check entirely since they go through the image flow). Returns an empty array
+// when there's no mention metadata so the caller can treat "no mentions" and
+// "no contextInfo at all" identically.
+function extractMentionedJids(message: unknown): string[] {
+  const m = message as {
+    extendedTextMessage?: { contextInfo?: { mentionedJid?: string[] | null } | null } | null;
+  } | null;
+  return m?.extendedTextMessage?.contextInfo?.mentionedJid ?? [];
 }
 
 function extractText(message: unknown): string | null {
