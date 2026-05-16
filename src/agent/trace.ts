@@ -1,5 +1,5 @@
 import type { BaseMessage } from '@langchain/core/messages';
-import { AIMessage, ToolMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 
 export type ToolCallTrace = {
   name: string;
@@ -21,15 +21,27 @@ export type TraceResult = {
 
 export function extractTrace(state: { messages: BaseMessage[] }): TraceResult {
   const toolCallsByCallId = new Map<string, ToolCallTrace>();
-  let iterations = 0;
   let inputTokens = 0;
   let outputTokens = 0;
   let usageSeen = false;
   let lastTextFromAI = '';
 
-  for (const msg of state.messages) {
+  // iterations should reflect the current turn only — count AI messages after
+  // the last HumanMessage. Anything before that is historical replay.
+  let lastHumanIdx = -1;
+  for (let i = state.messages.length - 1; i >= 0; i--) {
+    if (state.messages[i] instanceof HumanMessage) {
+      lastHumanIdx = i;
+      break;
+    }
+  }
+  let iterations = 0;
+
+  for (let i = 0; i < state.messages.length; i++) {
+    const msg = state.messages[i];
+    const isThisTurn = i > lastHumanIdx;
     if (msg instanceof AIMessage) {
-      iterations += 1;
+      if (isThisTurn) iterations += 1;
       const content = typeof msg.content === 'string' ? msg.content : '';
       if (content.length > 0) lastTextFromAI = content;
 

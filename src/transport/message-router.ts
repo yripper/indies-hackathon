@@ -7,6 +7,8 @@ import { messagesRepo, type Message } from '../db/queries/messages';
 import { agentRunsRepo } from '../db/queries/agent-runs';
 import { toolCallsRepo } from '../db/queries/tool-calls';
 import { extractTrace } from '../agent/trace';
+import { withConversation } from '../agent/context';
+import { peekPendingAudio } from './audio-cache';
 
 type CompiledGraph = {
   invoke: (
@@ -55,15 +57,73 @@ function assertGraphState(value: unknown): asserts value is { messages: BaseMess
   }
 }
 
+// Per-conversation tail queue. WhatsApp delivers messages async, and audio
+// uploads (which call dispatchMessage with "(audio reenviado)") can race with
+// the user's typed follow-up ("¿podés analizar?"). Without serialization both
+// peek the audio cache, both invoke the graph, both call the tool, and
+// whichever loses the consume-on-read race for takePendingAudio replies
+// "no audio cached" while the winner replies with the real verdict — the
+// user gets two messages, one of them confusing.
+//
+// We chain by JID so different conversations don't block each other.
+const conversationQueue = new Map<string, Promise<void>>();
+
+async function serializePerConversation<T>(
+  key: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const prior = conversationQueue.get(key);
+  let resolveMine!: () => void;
+  const myDone = new Promise<void>((r) => {
+    resolveMine = r;
+  });
+  conversationQueue.set(key, myDone);
+
+  if (prior) {
+    console.log(`[router] queued behind in-flight message for jid=${key}`);
+    try {
+      await prior;
+    } catch {
+      // Swallow upstream errors — we still want our turn to run.
+    }
+  }
+
+  try {
+    return await fn();
+  } finally {
+    resolveMine();
+    if (conversationQueue.get(key) === myDone) {
+      conversationQueue.delete(key);
+    }
+  }
+}
+
 export async function handleIncomingMessage(
   deps: MessageRouterDeps,
   msg: IncomingMessage,
 ): Promise<void> {
+  return serializePerConversation(msg.customerPhone, () =>
+    handleIncomingMessageInner(deps, msg),
+  );
+}
+
+async function handleIncomingMessageInner(
+  deps: MessageRouterDeps,
+  msg: IncomingMessage,
+): Promise<void> {
+  const textPreview = msg.text.slice(0, 200).replace(/\n/g, ' ');
+  console.log(
+    `[router] ▶ incoming: from=${msg.customerPhone} name="${msg.customerName}" text="${textPreview}"`,
+  );
+
   const conversation = await conversationsRepo.findOrCreate(deps.db, {
     customerPhone: msg.customerPhone,
     customerName: msg.customerName,
   });
-  if (conversation.status !== 'active') return;
+  if (conversation.status !== 'active') {
+    console.log(`[router] conversation ${conversation.id} status=${conversation.status} → drop`);
+    return;
+  }
 
   const userMsg = await messagesRepo.create(deps.db, {
     conversationId: conversation.id,
@@ -77,6 +137,10 @@ export async function handleIncomingMessage(
     deps.config.limits.history_window,
   );
 
+  console.log(
+    `[router] convId=${conversation.id} history=${history.length}msgs → invoking graph`,
+  );
+
   const run = await agentRunsRepo.start(deps.db, {
     conversationId: conversation.id,
     triggerMessageId: userMsg.id,
@@ -85,19 +149,60 @@ export async function handleIncomingMessage(
     model: deps.config.provider.model,
   });
 
+  // Peek pending audio (does not consume). MiniMax M2 rejects requests with
+  // more than one role=system message, so instead of injecting a second
+  // SystemMessage we pass the ephemeral note through ALS — agentNode appends
+  // it to the static system prompt content for THIS invocation only. History
+  // and DB stay clean of stale markers.
+  const pending = peekPendingAudio(msg.customerPhone);
+  let ephemeralSystemNote: string | undefined;
+  if (pending) {
+    const sourceDesc =
+      pending.source === 'direct'
+        ? 'reenvío directo del usuario'
+        : 'respuesta a un mensaje (reply-tag) del grupo';
+    ephemeralSystemNote = `Contexto interno actualizado para este turno: hay un audio pendiente de ${pending.durationSec} segundos en esta conversación, listo para analizar con la herramienta analyze_audio_deepfake. Origen: ${sourceDesc}. Aplicá las reglas de tu system prompt para audio pendiente.`;
+    console.log(
+      `[router] pending audio detected (dur=${pending.durationSec}s source=${pending.source}) → ephemeral note prepared`,
+    );
+  } else {
+    console.log('[router] no pending audio for this conversation');
+  }
+
   const startedAt = Date.now();
   try {
-    const rawState = await Promise.race([
-      deps.graph.invoke(
-        { messages: history.map(toLangChainMessage) },
-        { configurable: { thread_id: conversation.id } },
-      ),
-      timeoutPromise<unknown>(deps.config.limits.per_message_timeout_ms),
-    ]);
+    // ALS carries both the JID (for the tool's cache lookup) and the
+    // ephemeral system note (for agentNode to fold into the system prompt).
+    // thread_id stays on the DB UUID because that's what LangGraph's
+    // MemorySaver tracks across restarts.
+    const rawState = await withConversation(
+      {
+        conversationId: msg.customerPhone,
+        ephemeralSystemNote,
+        sendProgress: (text: string) => deps.send(msg.customerPhone, text),
+      },
+      () =>
+        Promise.race([
+          deps.graph.invoke(
+            { messages: history.map(toLangChainMessage) },
+            { configurable: { thread_id: conversation.id } },
+          ),
+          timeoutPromise<unknown>(deps.config.limits.per_message_timeout_ms),
+        ]),
+    );
 
     assertGraphState(rawState);
     const trace = extractTrace(rawState);
     const latencyMs = Date.now() - startedAt;
+
+    console.log(
+      `[router] graph done: iterations=${trace.iterations}, toolCalls=${trace.toolCalls.length}, finalTextChars=${trace.finalText.length}, latency=${latencyMs}ms`,
+    );
+    for (const tc of trace.toolCalls) {
+      console.log(
+        `[router]   tool=${tc.name} succeeded=${tc.succeeded} resultPreview="${String(tc.result ?? '').slice(0, 120).replace(/\n/g, ' ')}"`,
+      );
+    }
 
     const replyText =
       trace.finalText.length > 0 ? trace.finalText : "I wasn't able to generate a reply.";
@@ -133,9 +238,14 @@ export async function handleIncomingMessage(
       );
     }
 
+    console.log(
+      `[router] ◀ replying: chars=${replyText.length} preview="${replyText.slice(0, 200).replace(/\n/g, ' ')}"`,
+    );
     await deps.send(msg.customerPhone, replyText);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error(`[router] ✗ agent run failed: ${errorMessage}`);
+    if (err instanceof Error && err.stack) console.error(err.stack);
     await agentRunsRepo.fail(deps.db, run.id, errorMessage);
     await deps.send(msg.customerPhone, 'Sorry, I hit an error. Try again.');
   }

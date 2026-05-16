@@ -1,8 +1,25 @@
 import { StateGraph, MessagesAnnotation, MemorySaver, END, START } from '@langchain/langgraph';
 import { ToolNode } from '@langchain/langgraph/prebuilt';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { AIMessage, SystemMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage, SystemMessage, type BaseMessage } from '@langchain/core/messages';
 import type { StructuredToolInterface } from '@langchain/core/tools';
+import { getEphemeralSystemNote } from './context';
+
+// Count AIMessages added in the current turn (i.e. after the last HumanMessage,
+// which represents the just-received user input). The old version counted ALL
+// AIMessages in state.messages, so any conversation with >maxIterations history
+// would be capped immediately on the first agent call. That bug killed tool
+// dispatch entirely once history grew past 5 messages.
+function iterationsThisTurn(messages: BaseMessage[]): number {
+  let lastHumanIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i] instanceof HumanMessage) {
+      lastHumanIdx = i;
+      break;
+    }
+  }
+  return messages.slice(lastHumanIdx + 1).filter((m) => m instanceof AIMessage).length;
+}
 
 export type BuildGraphInput = {
   llm: BaseChatModel;
@@ -19,8 +36,38 @@ export function buildGraph(input: BuildGraphInput) {
     : input.llm;
 
   async function agentNode(state: typeof MessagesAnnotation.State) {
-    const messages = [new SystemMessage({ content: input.systemPrompt }), ...state.messages];
+    // Some providers (MiniMax M2) reject a request that contains more than
+    // one role=system message. Fold any per-turn ephemeral note into the
+    // single SystemMessage content here, rather than prepending a second
+    // SystemMessage at the router layer.
+    const ephemeral = getEphemeralSystemNote();
+    const systemContent = ephemeral
+      ? `${input.systemPrompt}\n\n[Contexto interno actualizado para este turno]\n${ephemeral}`
+      : input.systemPrompt;
+    const messages = [new SystemMessage({ content: systemContent }), ...state.messages];
+    const iterationBefore = iterationsThisTurn(state.messages);
+    console.log(
+      `[agent] → LLM call (turn-iter ${iterationBefore + 1}/${input.maxIterations}): ${messages.length} messages in${ephemeral ? ' (with ephemeral context)' : ''}`,
+    );
+    const t0 = Date.now();
     const response = await llmWithTools.invoke(messages);
+    const dt = Date.now() - t0;
+    const aiResp = response as AIMessage;
+    const toolCallsCount = Array.isArray(aiResp.tool_calls) ? aiResp.tool_calls.length : 0;
+    const contentPreview =
+      typeof aiResp.content === 'string'
+        ? aiResp.content.slice(0, 200).replace(/\n/g, ' ')
+        : '[non-string content]';
+    console.log(
+      `[agent] ← LLM returned in ${dt}ms: tool_calls=${toolCallsCount}, content="${contentPreview}"`,
+    );
+    if (toolCallsCount > 0 && Array.isArray(aiResp.tool_calls)) {
+      for (const call of aiResp.tool_calls) {
+        console.log(
+          `[agent]   tool_call: ${call.name}(${JSON.stringify(call.args ?? {})})`,
+        );
+      }
+    }
     return { messages: [response] };
   }
 
@@ -29,12 +76,19 @@ export function buildGraph(input: BuildGraphInput) {
     const isAi = last instanceof AIMessage;
     const hasToolCalls = isAi && Array.isArray(last.tool_calls) && last.tool_calls.length > 0;
 
-    // Count AI turns to enforce the iteration cap. Each agent invocation adds
-    // one AIMessage, so the count equals the number of completed iterations.
-    const iterationCount = state.messages.filter((m) => m instanceof AIMessage).length;
-    if (iterationCount >= input.maxIterations) return END;
+    const iter = iterationsThisTurn(state.messages);
+    if (iter >= input.maxIterations) {
+      console.log(
+        `[agent] shouldContinue → END (max iter ${input.maxIterations} reached this turn)`,
+      );
+      return END;
+    }
 
-    return hasToolCalls ? 'tools' : END;
+    const decision = hasToolCalls ? 'tools' : END;
+    console.log(
+      `[agent] shouldContinue → ${decision === END ? 'END' : 'tools'} (turn-iter=${iter}, hasToolCalls=${hasToolCalls})`,
+    );
+    return decision;
   }
 
   const graph = new StateGraph(MessagesAnnotation)

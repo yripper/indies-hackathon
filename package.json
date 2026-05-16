@@ -23,6 +23,7 @@
     "@langchain/core": "^0.3.80",
     "@langchain/langgraph": "^0.2.74",
     "@langchain/openai": "^0.3.17",
+    "@realitydefender/realitydefender": "^0.1.17",
     "@whiskeysockets/baileys": "7.0.0-rc11",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",

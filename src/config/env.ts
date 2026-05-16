@@ -13,6 +13,9 @@ const EnvSchema = z.object({
   // Override OpenAI base URL to point ChatOpenAI at an OpenAI-compatible endpoint
   // (e.g. MiniMax: https://api.minimax.io/v1). Leave empty to use OpenAI directly.
   OPENAI_BASE_URL: z.string().optional().default(''),
+  // Reality Defender deepfake-detection key. Required when analyze_audio_deepfake
+  // is enabled in agent.config.yaml; otherwise unused.
+  REALITY_DEFENDER_API_KEY: z.string().optional().default(''),
   WA_SESSION_KEY: z.string().regex(HEX_64, 'WA_SESSION_KEY must be 64 hex chars (32 bytes)'),
   SESSIONS_DIR: z.string().default('./sessions'),
   PORT: z.coerce.number().int().positive().default(3000),
