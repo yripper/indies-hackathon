@@ -2,6 +2,7 @@ import type { FastifyBaseLogger } from 'fastify';
 import type { WAMessage } from '@whiskeysockets/baileys';
 import type { SessionManager } from './session-manager';
 import { putPendingAudio } from '../audio-cache';
+import { putPendingImage } from '../image-cache';
 
 export type ConnectInput = {
   sessionsDir: string;
@@ -26,6 +27,26 @@ type PendingAudioDispatch = {
 };
 const pendingAudioDispatches = new Map<string, PendingAudioDispatch>();
 
+const IMAGE_DEBOUNCE_MS = 1500;
+type PendingImageDispatch = {
+  timer: NodeJS.Timeout;
+  pushName: string;
+};
+const pendingImageDispatches = new Map<string, PendingImageDispatch>();
+
+const SEEN_MESSAGE_IDS_MAX = 1000;
+const seenMessageIds = new Set<string>();
+function alreadySeen(id: string | null | undefined): boolean {
+  if (!id) return false;
+  if (seenMessageIds.has(id)) return true;
+  seenMessageIds.add(id);
+  if (seenMessageIds.size > SEEN_MESSAGE_IDS_MAX) {
+    const oldest = seenMessageIds.values().next().value;
+    if (oldest) seenMessageIds.delete(oldest);
+  }
+  return false;
+}
+
 export async function connectClient(input: ConnectInput): Promise<void> {
   await input.sessionManager.createSession({
     sessionsDir: input.sessionsDir,
@@ -38,6 +59,10 @@ export async function connectClient(input: ConnectInput): Promise<void> {
         if (m.key.fromMe) continue;
         const remoteJid = m.key.remoteJid;
         if (!remoteJid) continue;
+
+        if (alreadySeen(m.key.id)) {
+          continue;
+        }
 
         const isGroup = remoteJid.endsWith('@g.us');
         const isDm = remoteJid.endsWith('@s.whatsapp.net') || remoteJid.endsWith('@lid');
@@ -74,6 +99,15 @@ export async function connectClient(input: ConnectInput): Promise<void> {
           continue;
         }
 
+        const imageRef = extractImage(m);
+        if (imageRef) {
+          console.log(`[wa] image detected: source=${imageRef.source} mime="${imageRef.mimetype}"`);
+          handleImage(input, m, remoteJid, imageRef).catch((err) => {
+            console.error(`[wa] ✗ image handling failed: ${err instanceof Error ? err.message : err}`);
+          });
+          continue;
+        }
+
         const text = extractText(m.message);
         if (!text) {
           console.log('[wa] drop: no extractable text and no audio');
@@ -93,6 +127,18 @@ export async function connectClient(input: ConnectInput): Promise<void> {
           console.log(
             `[wa] merging pending audio with follow-up text: "${text.slice(0, 120).replace(/\n/g, ' ')}"`,
           );
+          input.dispatchMessage(remoteJid, customerName, text).catch((err) => {
+            console.error(`[wa] ✗ dispatchMessage failed: ${err instanceof Error ? err.message : err}`);
+          });
+          continue;
+        }
+
+        // Check pending image dispatch (same pattern as audio)
+        const pendingImg = pendingImageDispatches.get(remoteJid);
+        if (pendingImg) {
+          clearTimeout(pendingImg.timer);
+          pendingImageDispatches.delete(remoteJid);
+          console.log(`[wa] merging pending image with follow-up text: "${text.slice(0, 120)}"`);
           input.dispatchMessage(remoteJid, customerName, text).catch((err) => {
             console.error(`[wa] ✗ dispatchMessage failed: ${err instanceof Error ? err.message : err}`);
           });
@@ -212,6 +258,85 @@ async function handleAudio(
   }, AUDIO_DEBOUNCE_MS);
 
   pendingAudioDispatches.set(remoteJid, { timer, pushName });
+}
+
+type ImageRef = {
+  download: WAMessage;
+  mimetype: string;
+  source: 'direct' | 'quoted';
+};
+
+function extractImage(m: WAMessage): ImageRef | null {
+  const direct = (m.message as { imageMessage?: { mimetype?: string } | null } | null)
+    ?.imageMessage;
+  if (direct) {
+    return { download: m, mimetype: direct.mimetype ?? 'image/jpeg', source: 'direct' };
+  }
+
+  const ctx = (m.message as {
+    extendedTextMessage?: {
+      contextInfo?: {
+        stanzaId?: string | null;
+        participant?: string | null;
+        quotedMessage?: { imageMessage?: { mimetype?: string } | null } | null;
+      } | null;
+    } | null;
+  } | null)?.extendedTextMessage?.contextInfo;
+
+  const quotedImage = ctx?.quotedMessage?.imageMessage;
+  if (!quotedImage || !ctx?.stanzaId) return null;
+
+  const stub: WAMessage = {
+    key: { remoteJid: m.key.remoteJid, id: ctx.stanzaId, fromMe: false, participant: ctx.participant ?? undefined },
+    message: ctx.quotedMessage as WAMessage['message'],
+  } as WAMessage;
+
+  return { download: stub, mimetype: quotedImage.mimetype ?? 'image/jpeg', source: 'quoted' };
+}
+
+async function handleImage(
+  input: ConnectInput,
+  m: WAMessage,
+  remoteJid: string,
+  image: ImageRef,
+): Promise<void> {
+  console.log(`[wa] downloading image (source=${image.source})...`);
+  const t0 = Date.now();
+  const buffer = await input.sessionManager.downloadMedia(image.download);
+  console.log(`[wa] ✓ downloaded image ${buffer.length} bytes in ${Date.now() - t0}ms`);
+
+  putPendingImage(remoteJid, {
+    buffer,
+    mimetype: image.mimetype,
+    bytes: buffer.length,
+    fromName: m.pushName ?? '',
+    source: image.source,
+  });
+
+  const userText = extractText(m.message) ?? '';
+
+  if (userText) {
+    console.log(`[wa] image with caption → dispatching immediately: "${userText.slice(0, 120)}"`);
+    await input.dispatchMessage(remoteJid, m.pushName ?? '', userText);
+    return;
+  }
+
+  const prior = pendingImageDispatches.get(remoteJid);
+  if (prior) {
+    clearTimeout(prior.timer);
+  }
+
+  console.log(`[wa] holding image for ${IMAGE_DEBOUNCE_MS}ms for follow-up text...`);
+  const pushName = m.pushName ?? '';
+  const timer = setTimeout(() => {
+    pendingImageDispatches.delete(remoteJid);
+    console.log('[wa] image debounce elapsed → dispatching "(imagen recibida)"');
+    input.dispatchMessage(remoteJid, pushName, '(imagen recibida)').catch((err) => {
+      console.error(`[wa] ✗ image debounced dispatch failed: ${err instanceof Error ? err.message : err}`);
+    });
+  }, IMAGE_DEBOUNCE_MS);
+
+  pendingImageDispatches.set(remoteJid, { timer, pushName });
 }
 
 function extractMentionedJids(message: unknown): string[] {

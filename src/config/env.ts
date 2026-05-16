@@ -16,6 +16,10 @@ const EnvSchema = z.object({
   // Reality Defender deepfake-detection key. Required when analyze_audio_deepfake
   // is enabled in agent.config.yaml; otherwise unused.
   REALITY_DEFENDER_API_KEY: z.string().optional().default(''),
+  // Sightengine credentials for second-opinion AI-generated image detector.
+  // Free tier: 2000 ops/month. When unset, image tool uses RD-only scoring.
+  SIGHTENGINE_API_USER: z.string().optional().default(''),
+  SIGHTENGINE_API_SECRET: z.string().optional().default(''),
   WA_SESSION_KEY: z.string().regex(HEX_64, 'WA_SESSION_KEY must be 64 hex chars (32 bytes)'),
   SESSIONS_DIR: z.string().default('./sessions'),
   PORT: z.coerce.number().int().positive().default(3000),

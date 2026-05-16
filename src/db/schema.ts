@@ -127,3 +127,32 @@ export const audioAnalyses = pgTable(
     index('audio_analyses_tier_idx').on(table.tier, table.createdAt),
   ],
 );
+
+export const imageAnalyses = pgTable(
+  'image_analyses',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    conversationId: uuid('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    agentRunId: uuid('agent_run_id').references(() => agentRuns.id, {
+      onDelete: 'set null',
+    }),
+    bytes: integer('bytes').notNull(),
+    mimetype: text('mimetype').notNull(),
+    source: text('source').notNull(),
+    fromName: text('from_name'),
+    detector: text('detector').notNull(),
+    tier: text('tier').notNull(),
+    score: real('score').notNull(),
+    rawStatus: text('raw_status').notNull(),
+    modelScores: jsonb('model_scores'),
+    secondaryDetector: jsonb('secondary_detector'),
+    latencyMs: integer('latency_ms').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('image_analyses_conv_idx').on(table.conversationId, table.createdAt),
+    index('image_analyses_tier_idx').on(table.tier, table.createdAt),
+  ],
+);

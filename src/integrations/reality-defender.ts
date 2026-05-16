@@ -123,3 +123,75 @@ export async function analyzeAudio(
     await unlink(filePath).catch(() => {});
   }
 }
+
+export type ImageVerdict = {
+  tier: 'real' | 'uncertain' | 'fake';
+  score: number;
+  rawStatus: string;
+  models: Array<{ name: string; status: string; score: number | null }>;
+};
+
+function extensionForImageMime(mimetype: string): string {
+  const m = mimetype.toLowerCase();
+  if (m.includes('jpeg') || m.includes('jpg')) return 'jpg';
+  if (m.includes('png')) return 'png';
+  if (m.includes('webp')) return 'webp';
+  if (m.includes('heic') || m.includes('heif')) return 'heic';
+  if (m.includes('gif')) return 'gif';
+  return 'jpg';
+}
+
+export type AnalyzeImageInput = {
+  buffer: Buffer;
+  mimetype: string;
+};
+
+export async function analyzeImage(
+  apiKey: string,
+  input: AnalyzeImageInput,
+): Promise<ImageVerdict> {
+  if (!apiKey) {
+    throw new Error('REALITY_DEFENDER_API_KEY is not set');
+  }
+
+  const dir = await mkdtemp(path.join(tmpdir(), 'rd-img-'));
+  const ext = extensionForImageMime(input.mimetype);
+  const filePath = path.join(dir, `image.${ext}`);
+  await writeFile(filePath, input.buffer);
+
+  log.info({ filePath, mime: input.mimetype, bytes: input.buffer.length }, 'uploading image to Reality Defender');
+
+  try {
+    const rd = new RealityDefender({ apiKey });
+    const t0 = Date.now();
+    const result = await rd.detect({ filePath });
+    const dt = Date.now() - t0;
+    log.info(
+      { latencyMs: dt, status: result.status, score: result.score, models: result.models?.length ?? 0 },
+      'image detection complete',
+    );
+    if (result.models) {
+      for (const m of result.models) {
+        log.debug({ model: m.name, status: m.status, score: m.score }, 'image model result');
+      }
+    }
+    const score = typeof result.score === 'number' ? result.score : 0;
+    return {
+      tier: tierFromScore(score),
+      score,
+      rawStatus: result.status ?? 'UNKNOWN',
+      models: (result.models ?? []).map((m) => ({
+        name: m.name,
+        status: m.status ?? 'UNKNOWN',
+        score: typeof m.score === 'number' ? m.score : null,
+      })),
+    };
+  } catch (err: unknown) {
+    if (isQuotaError(err)) {
+      throw new QuotaExhaustedError();
+    }
+    throw err;
+  } finally {
+    await unlink(filePath).catch(() => {});
+  }
+}

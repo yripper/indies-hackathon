@@ -34,11 +34,33 @@ export type AudioAnalysisRecord = {
   latencyMs: number;
 };
 
+export type ImageAnalysisRecord = {
+  bytes: number;
+  mimetype: string;
+  source: 'direct' | 'quoted';
+  fromName?: string;
+  detector: string;
+  tier: 'real' | 'uncertain' | 'fake';
+  score: number;
+  rawStatus: string;
+  modelScores?: Array<{ name: string; status: string; score: number | null }>;
+  secondaryDetector?: {
+    provider: 'sightengine';
+    aiGenerated: number;
+    deepfake: number | null;
+    generators: Record<string, number>;
+    requestId: string;
+    error?: string;
+  } | null;
+  latencyMs: number;
+};
+
 type ConversationContext = {
   conversationId: string;
   ephemeralSystemNote?: string;
   sendProgress?: (text: string) => Promise<void>;
   recordAudioAnalysis?: (record: AudioAnalysisRecord) => Promise<void>;
+  recordImageAnalysis?: (record: ImageAnalysisRecord) => Promise<void>;
 };
 
 const storage = new AsyncLocalStorage<ConversationContext>();
@@ -66,4 +88,10 @@ export function getAudioAnalysisRecorder():
   | ((record: AudioAnalysisRecord) => Promise<void>)
   | null {
   return storage.getStore()?.recordAudioAnalysis ?? null;
+}
+
+export function getImageAnalysisRecorder():
+  | ((record: ImageAnalysisRecord) => Promise<void>)
+  | null {
+  return storage.getStore()?.recordImageAnalysis ?? null;
 }
