@@ -1,9 +1,11 @@
 allowBuilds:
+  '@contentauth/c2pa-node': true
   '@whiskeysockets/baileys': true
   esbuild: true
   protobufjs: true
   sharp: true
 onlyBuiltDependencies:
+  - '@contentauth/c2pa-node'
   - '@whiskeysockets/baileys'
   - esbuild
   - protobufjs

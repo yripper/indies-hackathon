@@ -6,3 +6,8 @@ sessions/
 *.log
 .DS_Store
 tsconfig.tsbuildinfo
+
+# Image detection tools: blocklist is sensitive (real victim-reported hashes)
+config/blocklist.jsonl
+# Sensitive fixtures (real victim-adjacent material) — never commit
+tests/fixtures/images/sensitive/

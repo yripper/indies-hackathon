@@ -1,0 +1,32 @@
+# Trusted C2PA issuers (Content Provenance Authority Organizations).
+# Used by `verify_c2pa_credentials` tool to classify whether a valid C2PA
+# signature came from a recognized authority.
+#
+# Format: each entry has `o` (organization name, matched as case-insensitive
+# substring against the signature's issuer string) and `category`
+# (one of: ai_generator | camera | editor | platform | publisher).
+#
+# Add new issuers by appending to `trusted_issuers`.
+
+trusted_issuers:
+  # AI generators
+  - { o: "OpenAI",                   category: "ai_generator" }
+  - { o: "Google LLC",               category: "ai_generator" }
+  - { o: "Google",                   category: "ai_generator" }
+  # Cameras
+  - { o: "Sony Group Corporation",   category: "camera" }
+  - { o: "Sony Corporation",         category: "camera" }
+  - { o: "Nikon Corporation",        category: "camera" }
+  - { o: "Leica Camera AG",          category: "camera" }
+  - { o: "Canon Inc",                category: "camera" }
+  # Editors
+  - { o: "Adobe Inc",                category: "editor" }
+  - { o: "Adobe Systems",            category: "editor" }
+  # Platforms
+  - { o: "Microsoft Corporation",    category: "platform" }
+  - { o: "Truepic",                  category: "platform" }
+  # Publishers / News
+  - { o: "BBC",                      category: "publisher" }
+  - { o: "The New York Times",       category: "publisher" }
+  - { o: "Reuters",                  category: "publisher" }
+  - { o: "Associated Press",         category: "publisher" }

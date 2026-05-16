@@ -17,6 +17,7 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@contentauth/c2pa-node": "^0.5.5",
     "@fastify/cors": "^11.2.0",
     "@hapi/boom": "^10.0.1",
     "@langchain/anthropic": "^0.3.34",
@@ -26,8 +27,11 @@
     "@whiskeysockets/baileys": "7.0.0-rc11",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
+    "exiftool-vendored": "^35.20.0",
     "fastify": "^5.8.5",
+    "pdq-wasm": "^0.3.9",
     "postgres": "^3.4.9",
+    "sharp": "^0.34.5",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },
