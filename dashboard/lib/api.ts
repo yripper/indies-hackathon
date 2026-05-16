@@ -22,16 +22,34 @@ export type ModelScore = {
   score: number | null;
 };
 
+export type MediaType = "audio" | "image";
+
 export type OverviewResponse = {
   totals: {
     analyses_all_time: number;
     analyses_24h: number;
     analyses_7d: number;
     conversations_with_audio: number;
+    conversations_with_image?: number;
+    audio_all_time?: number;
+    audio_24h?: number;
+    audio_7d?: number;
+    image_all_time?: number;
+    image_24h?: number;
+    image_7d?: number;
   };
   tier_breakdown_24h: TierCounts;
   tier_breakdown_7d: TierCounts;
+  audio_tier_breakdown_24h?: TierCounts;
+  audio_tier_breakdown_7d?: TierCounts;
+  image_tier_breakdown_24h?: TierCounts;
+  image_tier_breakdown_7d?: TierCounts;
   latency_ms: {
+    p50: number | null;
+    p95: number | null;
+    avg: number | null;
+  };
+  image_latency_ms?: {
     p50: number | null;
     p95: number | null;
     avg: number | null;
@@ -41,13 +59,15 @@ export type OverviewResponse = {
     conversation_id: string;
     tier: Tier;
     score: number;
-    duration_sec: number;
+    duration_sec: number | null;
+    bytes?: number;
     from_name: string | null;
     mimetype: string;
     source: "direct" | "quoted";
     detector: string;
     latency_ms: number;
     created_at: string;
+    media_type?: MediaType;
   }>;
 };
 
@@ -87,7 +107,7 @@ export type ConversationDetailResponse = {
     tier: Tier;
     score: number;
     raw_status: string;
-    duration_sec: number;
+    duration_sec: number | null;
     bytes: number;
     mimetype: string;
     source: "direct" | "quoted";
@@ -97,6 +117,7 @@ export type ConversationDetailResponse = {
     latency_ms: number;
     agent_run_id: string | null;
     created_at: string;
+    media_type?: MediaType;
   }>;
 };
 

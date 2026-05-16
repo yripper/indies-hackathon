@@ -44,13 +44,13 @@ export default async function OverviewPage() {
       <header className="mb-8">
         <h1 className="text-3xl font-semibold tracking-tight">Overview</h1>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          Defensa en vivo · familias chilenas protegidas contra fraude de voice clone
+          Defensa en vivo &middot; familias chilenas protegidas contra deepfakes (audio + imagen)
         </p>
       </header>
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
-          label="Audios analizados · 24h"
+          label="Análisis totales · 24h"
           value={data.totals.analyses_24h.toLocaleString()}
           sublabel={`${data.totals.analyses_7d.toLocaleString()} en los últimos 7 días`}
         />
@@ -72,6 +72,20 @@ export default async function OverviewPage() {
         />
       </section>
 
+      {/* Per-media-type breakdown cards */}
+      <section className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Audios · 24h"
+          value={(data.totals.audio_24h ?? 0).toLocaleString()}
+          sublabel={`${(data.totals.audio_all_time ?? 0).toLocaleString()} totales`}
+        />
+        <KpiCard
+          label="Imágenes · 24h"
+          value={(data.totals.image_24h ?? 0).toLocaleString()}
+          sublabel={`${(data.totals.image_all_time ?? 0).toLocaleString()} totales`}
+        />
+      </section>
+
       <section className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Panel title="Veredicto · últimas 24 horas">
           <TierBar counts={data.tier_breakdown_24h} />
@@ -82,10 +96,10 @@ export default async function OverviewPage() {
       </section>
 
       <section className="mt-8">
-        <Panel title="Actividad reciente" subtitle="Últimos 20 audios analizados">
+        <Panel title="Actividad reciente" subtitle="Últimos 20 análisis (audio + imagen)">
           {data.recent.length === 0 ? (
             <div className="rounded-md border border-dashed border-zinc-300 bg-zinc-50 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900">
-              Sin actividad reciente. Reenviá un audio al bot para empezar.
+              Sin actividad reciente. Enviá un audio o imagen al bot para empezar.
             </div>
           ) : (
             <RecentTable rows={data.recent} />
@@ -120,17 +134,40 @@ function Panel({
   );
 }
 
+function MediaIcon({ type }: { type?: "audio" | "image" }) {
+  if (type === "image") {
+    return (
+      <span
+        className="inline-flex items-center rounded bg-violet-100 px-1.5 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+        title="Imagen"
+      >
+        IMG
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center rounded bg-sky-100 px-1.5 py-0.5 text-xs font-medium text-sky-700 dark:bg-sky-900/40 dark:text-sky-300"
+      title="Audio"
+    >
+      AUD
+    </span>
+  );
+}
+
 function RecentTable({ rows }: { rows: OverviewResponse["recent"] }) {
   return (
     <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
       <table className="w-full text-sm">
         <thead className="bg-zinc-50 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400">
           <tr>
+            <th className="px-4 py-2.5">Tipo</th>
             <th className="px-4 py-2.5">Cuándo</th>
             <th className="px-4 py-2.5">Familia</th>
             <th className="px-4 py-2.5">Veredicto</th>
             <th className="px-4 py-2.5">Confianza IA</th>
             <th className="px-4 py-2.5">Duración</th>
+            <th className="px-4 py-2.5">Detector</th>
             <th className="px-4 py-2.5">De</th>
             <th className="px-4 py-2.5">Latencia</th>
           </tr>
@@ -141,6 +178,9 @@ function RecentTable({ rows }: { rows: OverviewResponse["recent"] }) {
               key={r.id}
               className="bg-white transition hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-950"
             >
+              <td className="px-4 py-3">
+                <MediaIcon type={r.media_type} />
+              </td>
               <td className="px-4 py-3 text-zinc-500 dark:text-zinc-400" title={r.created_at}>
                 {formatRelative(r.created_at)}
               </td>
@@ -157,7 +197,10 @@ function RecentTable({ rows }: { rows: OverviewResponse["recent"] }) {
               </td>
               <td className="px-4 py-3 font-mono">{formatPercent(r.score, 1)}</td>
               <td className="px-4 py-3 font-mono text-zinc-600 dark:text-zinc-300">
-                {r.duration_sec}s
+                {r.duration_sec != null ? `${r.duration_sec}s` : <span className="text-zinc-400">—</span>}
+              </td>
+              <td className="px-4 py-3 text-xs text-zinc-600 dark:text-zinc-300">
+                {r.detector}
               </td>
               <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">
                 {r.from_name || <span className="text-zinc-400">—</span>}
