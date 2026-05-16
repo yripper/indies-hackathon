@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [k2, 'release/**', 'feat/**']
+  pull_request:
+    branches: [k2]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: indies
+          POSTGRES_PASSWORD: indies
+          POSTGRES_DB: indies_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql://indies:indies@localhost:5432/indies_test
+        run: pnpm db:migrate
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql://indies:indies@localhost:5432/indies_test
+          WA_SESSION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          REALITY_DEFENDER_API_KEY: test-key
+          SIGHTENGINE_API_USER: test-user
+          SIGHTENGINE_API_SECRET: test-secret
+          DEEPFAKE_SERVICE_URL: http://localhost:7860
+          NODE_ENV: test
+        run: pnpm test
+
+      - name: TypeScript check (non-blocking)
+        continue-on-error: true
+        env:
+          NODE_OPTIONS: "--max-old-space-size=8192"
+        run: npx tsc --noEmit
