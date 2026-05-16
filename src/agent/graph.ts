@@ -29,10 +29,16 @@ export function buildGraph(input: BuildGraphInput) {
     const isAi = last instanceof AIMessage;
     const hasToolCalls = isAi && Array.isArray(last.tool_calls) && last.tool_calls.length > 0;
 
-    // Count AI turns to enforce the iteration cap. Each agent invocation adds
-    // one AIMessage, so the count equals the number of completed iterations.
-    const iterationCount = state.messages.filter((m) => m instanceof AIMessage).length;
-    if (iterationCount >= input.maxIterations) return END;
+    // Cap counts only AIMessages that actually have tool_calls — i.e. active
+    // tool-use roundtrips inside this single graph.invoke. Historical
+    // assistant text replayed from Postgres has no tool_calls (the replay
+    // path in message-router strips them), so it doesn't consume the cap.
+    // Counting "all AIMessages" would let a long conversation history
+    // exhaust the cap on iteration 1 and END before any tool runs.
+    const toolUseTurns = state.messages.filter(
+      (m) => m instanceof AIMessage && Array.isArray(m.tool_calls) && m.tool_calls.length > 0,
+    ).length;
+    if (toolUseTurns >= input.maxIterations) return END;
 
     return hasToolCalls ? 'tools' : END;
   }
