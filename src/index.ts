@@ -21,7 +21,7 @@ async function main(): Promise<void> {
 
   const agentConfig = loadAgentConfig(env.AGENT_CONFIG_PATH);
   const llm = buildLlm(agentConfig.provider);
-  const tools = resolveTools(agentConfig.tools.enabled);
+  const tools = resolveTools(agentConfig.tools.enabled, agentConfig.tools.config);
   const graph = buildGraph({
     llm,
     tools,
