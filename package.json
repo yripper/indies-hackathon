@@ -1,0 +1,41 @@
+{
+  "name": "indies-hackathon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "build": "tsc",
+    "verify": "tsc --noEmit && vitest run",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:migrate:test": "DATABASE_URL=postgres://indies:indies@localhost:5432/indies_test drizzle-kit migrate",
+    "db:setup:test": "docker compose exec -T postgres psql -U indies -d postgres -c 'CREATE DATABASE indies_test;' || true && pnpm db:migrate:test",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.2.0",
+    "@hapi/boom": "^10.0.1",
+    "@langchain/anthropic": "^0.3.34",
+    "@langchain/core": "^0.3.80",
+    "@langchain/langgraph": "^0.2.74",
+    "@langchain/openai": "^0.3.17",
+    "@whiskeysockets/baileys": "7.0.0-rc11",
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.8.5",
+    "postgres": "^3.4.9",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.8.0",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.22.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.6"
+  }
+}
