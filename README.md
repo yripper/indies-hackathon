@@ -230,6 +230,96 @@ Opens a local analytics UI with KPI cards (total scans, fake %, avg confidence),
 
 ---
 
+## Image deepfake detection
+
+Detects AI-generated images (MidJourney, Flux, DALL·E, GPT-image, Stable Diffusion, etc.) using a composite dual-detector approach: Reality Defender + Sightengine running in parallel.
+
+### Why two detectors?
+
+Reality Defender's ensemble averages 10 sub-models, which dilutes strong individual signals. In testing, clearly AI-generated images scored only 48% ("uncertain") because one model at 99% was averaged with nine others near 0. Our composite scoring fixes this:
+
+```
+final_score = max(RD_ensemble, RD_top_submodel × 0.85, Sightengine_genai)
+```
+
+Result: a Flux-generated image that the single-detector approach marked "uncertain" at 48% now correctly scores "fake" at ≥90%.
+
+### Enabling
+
+1. Get a Reality Defender key at [app.realitydefender.ai](https://app.realitydefender.ai) (shared with audio, 50 scans/month).
+2. Get Sightengine credentials at [sightengine.com](https://sightengine.com) (free tier: 2000 ops/month).
+3. Add to `.env`:
+   ```bash
+   REALITY_DEFENDER_API_KEY=rd_live_...
+   SIGHTENGINE_API_USER=...
+   SIGHTENGINE_API_SECRET=...
+   ```
+4. Confirm `analyze_image_deepfake` is in `agent.config.yaml` under `tools.enabled`.
+
+### How it works
+
+1. User sends an image → bot asks "¿Querés que la analice?"
+2. User confirms → bot runs RD + Sightengine in parallel → returns composite verdict with technical detail
+3. Image + caption "¿es real?" → auto-analyzes immediately (no confirmation needed)
+
+### Graceful degradation
+
+If Reality Defender's quota is exhausted (50/month shared with audio), the image tool automatically degrades to Sightengine-only. Sightengine alone already outperforms the old single-detector approach for modern generators (Flux, MJ, GPT-image).
+
+### Thresholds
+
+| Score | Tier | Meaning |
+|---|---|---|
+| ≥ 0.8 | `fake` | Strong AI-generation signals |
+| 0.4 – 0.8 | `uncertain` | Detectors disagree |
+| < 0.4 | `real` | Appears authentic |
+
+---
+
+## Video deepfake detection
+
+Detects deepfake videos by analyzing face consistency across frames using MTCNN (face detection) + EfficientNetB0 (real vs fake classification). Runs on a separate Python ML service — no paid API required.
+
+### Enabling
+
+1. Deploy the ML service (see `deepfake-service/README.md` for HF Spaces instructions)
+2. Add to `.env`:
+   ```bash
+   DEEPFAKE_SERVICE_URL=https://dr4k3n-deepfake-detector.hf.space
+   # Or for local dev: http://localhost:7860
+   ```
+3. Confirm `detect_deepfake_video` is in `agent.config.yaml` under `tools.enabled`.
+
+### How it works
+
+1. User sends a video → bot extracts the file
+2. Video is posted to the ML service → MTCNN extracts faces from ~20 sampled frames
+3. EfficientNetB0 classifies each face crop (real vs fake)
+4. Temporal inconsistency is measured across consecutive frames
+5. Returns verdict with confidence score and frame analysis detail
+
+### Architecture
+
+The ML service runs independently (Docker container on HF Spaces or local):
+- **Input:** Video file (MP4, MOV, up to 100MB)
+- **Processing:** ~10-30s on CPU
+- **Output:** `{ verdict, confidence, faces_found, frames_analyzed, temporal_inconsistency }`
+
+---
+
+## Rate limiting
+
+Each WhatsApp JID (user) is limited to **5 analyses per hour** and **15 per day** to protect the shared Reality Defender quota (50 scans/month). Configurable via environment variables:
+
+```bash
+RATE_LIMIT_HOURLY=5    # max analyses per JID per hour
+RATE_LIMIT_DAILY=15    # max analyses per JID per day
+```
+
+When rate-limited, the bot replies with a friendly message indicating when they can try again.
+
+---
+
 ## Switching providers (no code changes)
 
 | Want | `agent.config.yaml` | `.env` |
