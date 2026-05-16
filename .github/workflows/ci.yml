@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main, k2]
+  pull_request:
+
+jobs:
+  test-node:
+    name: Node.js tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install
+
+      - name: Run agent + config tests (no DB required)
+        run: pnpm test tests/agent/ tests/config/
+
+  lint-python:
+    name: Python lint (deepfake-service)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Detect whether any file inside deepfake-service/ changed.
+      # Works for both push and pull_request events.
+      - name: Check for deepfake-service changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            deepfake:
+              - 'deepfake-service/**'
+
+      - uses: actions/setup-python@v5
+        if: steps.changes.outputs.deepfake == 'true'
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        if: steps.changes.outputs.deepfake == 'true'
+        run: pip install ruff
+
+      - name: Lint deepfake-service with ruff
+        if: steps.changes.outputs.deepfake == 'true'
+        run: ruff check deepfake-service/

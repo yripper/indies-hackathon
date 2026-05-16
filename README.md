@@ -391,6 +391,87 @@ Tool files must `import { z } from 'zod/v3'` (the Zod v3 compat subpath bundled 
 
 ---
 
+## Deepfake video detection
+
+When a user sends a video over WhatsApp, the bot downloads it and calls `detect_deepfake_video` automatically — no explicit prompt needed. Users can also trigger it on demand with a URL: "analiza este video: https://...".
+
+### How it works
+
+The pipeline runs entirely in a Python sidecar (`deepfake-service/`):
+
+1. **MTCNN** extracts faces from sampled frames.
+2. Each face crop is scored by **`dima806/deepfake_vs_real_image_detection`** — an EfficientNetB0 fine-tuned on FaceForensics++.
+3. Scores are aggregated across frames and returned as a JSON verdict (`real` / `fake`, confidence %, frames analyzed).
+
+The LangGraph tool (`src/agent/tools/detect-deepfake-video.ts`) calls the sidecar's REST API, formats the result into a human-readable string, and returns it to the LLM.
+
+### Setup — local development
+
+**1. Install Python dependencies**
+
+```bash
+pip install -r deepfake-service/requirements.txt
+```
+
+**2. Start the service**
+
+```bash
+cd deepfake-service
+uvicorn main:app --port 7860
+```
+
+The service exposes a single endpoint at `http://localhost:7860`.
+
+**3. Add the env var to `.env`**
+
+```bash
+DEEPFAKE_SERVICE_URL=http://localhost:7860
+```
+
+**4. Enable the tool in `agent.config.yaml`**
+
+```yaml
+tools:
+  enabled:
+    - "get_current_time"
+    - "calculator"
+    - "detect_deepfake_video"   # ← add this
+```
+
+### Setup — Hugging Face Spaces (demo deploy)
+
+The `deepfake-service/` subtree can be deployed as a Gradio/FastAPI Space directly from this repo:
+
+```bash
+# First time: add the remote
+git remote add hf-deepfake https://huggingface.co/spaces/<your-hf-username>/<space-name>
+
+# Deploy (pushes only the deepfake-service/ subtree)
+git subtree push --prefix deepfake-service hf-deepfake main
+```
+
+After the Space builds, set the env var in `.env` to the Space URL:
+
+```bash
+DEEPFAKE_SERVICE_URL=https://<your-hf-username>-<space-name>.hf.space
+```
+
+### Triggering the tool
+
+| Scenario | What to do |
+|---|---|
+| Video attachment | Send any video on WhatsApp — the bot analyzes it automatically |
+| Remote URL | Say "analiza este video: https://..." — the tool downloads and scores it |
+
+### Models used
+
+| Model | Role |
+|---|---|
+| [MTCNN](https://github.com/timesler/facenet-pytorch) | Face detection — extracts face crops from each sampled frame |
+| [`dima806/deepfake_vs_real_image_detection`](https://huggingface.co/dima806/deepfake_vs_real_image_detection) | EfficientNetB0 classifier trained on FaceForensics++ |
+
+---
+
 ## API endpoints
 
 | Method | Path | Purpose |

@@ -1,9 +1,11 @@
 agent:
-  name: "test-agent"
+  name: "deepfake-detector"
   system_prompt: |
-    You are a helpful agent that responds to WhatsApp messages.
-    When you need information you don't have, use available tools.
-    Keep responses concise — under 3 short paragraphs.
+    Eres un asistente de WhatsApp especializado en detectar deepfakes en videos.
+    Cuando el usuario comparte un video o una URL y pregunta si es real, falso, generado por IA
+    o deepfake, usa la tool detect_deepfake_video con la URL o ruta del video.
+    Si el mensaje incluye [VIDEO:/ruta/al/archivo.mp4], extrae esa ruta y úsala como videoSource.
+    Explica el resultado en términos simples. Responde siempre en el idioma del usuario. Sé conciso.
 
 # Provider switching cheatsheet:
 #   - OpenAI:    name=openai, model=gpt-5.4-mini, leave OPENAI_BASE_URL empty in .env
@@ -21,6 +23,7 @@ tools:
     - "get_current_time"
     - "calculator"
     - "echo"
+    - "detect_deepfake_video"
   config:
     calculator:
       max_precision: 10
