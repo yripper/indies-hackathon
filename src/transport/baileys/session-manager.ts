@@ -20,9 +20,23 @@ export type SessionConfig = {
   onDisconnected: () => void;
 };
 
+// Minimal noop logger to silence Baileys' default pino-to-stdout output,
+// which would otherwise interleave with Fastify's structured JSON logs.
+const noopLogger = {
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  debug: () => {},
+  trace: () => {},
+  fatal: () => {},
+  child: () => noopLogger,
+  level: 'silent',
+};
+
 export class SessionManager {
   private socket: WASocket | null = null;
   private currentConfig: SessionConfig | null = null;
+  private reconnectTimer: NodeJS.Timeout | null = null;
 
   constructor(private readonly crypto: SessionCrypto) {}
 
@@ -31,11 +45,17 @@ export class SessionManager {
   }
 
   async createSession(config: SessionConfig): Promise<void> {
+    // Guard against duplicate-socket races (e.g. double connection.close events triggering
+    // multiple reconnect timers). Closing first ensures we never have two live sockets.
+    if (this.socket) {
+      try { this.socket.end(undefined); } catch { /* ignore */ }
+      this.socket = null;
+    }
     this.currentConfig = config;
     const store = new EncryptedFileSessionStore(config.sessionsDir, this.crypto);
     const { state, saveCreds } = await useEncryptedAuthState(store);
 
-    const socket = makeWASocket({ auth: state, printQRInTerminal: false });
+    const socket = makeWASocket({ auth: state, printQRInTerminal: false, logger: noopLogger as never });
     socket.ev.on('creds.update', saveCreds);
     socket.ev.on('connection.update', (update) => this.handleConnectionUpdate(update));
     socket.ev.on('messages.upsert', (upsert) => config.onMessage(upsert));
@@ -85,7 +105,10 @@ export class SessionManager {
       }
       // Reconnect on transient errors with a delay to avoid hammering the server
       // during sustained outages — tight reconnect storms risk Baileys session bans.
-      setTimeout(() => {
+      // Guard with a single timer reference so double close events don't queue two reconnects.
+      if (this.reconnectTimer) return;
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = null;
         this.createSession(cfg).catch((err) => {
           console.error('[session-manager] Reconnect failed:', err);
           this.close();
