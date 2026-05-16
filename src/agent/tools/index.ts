@@ -2,6 +2,7 @@ import type { StructuredToolInterface } from '@langchain/core/tools';
 import { echoTool } from './echo';
 import { getCurrentTimeTool } from './get-current-time';
 import { calculatorTool } from './calculator';
+import { extractImageExifTool } from './extract-image-exif';
 
 // A tool factory takes an optional per-tool config slice (from
 // `tools.config.<tool_name>` in agent.config.yaml) and returns a ready-to-use
@@ -12,6 +13,7 @@ const REGISTRY: Record<string, ToolFactory> = {
   echo: () => echoTool,
   get_current_time: () => getCurrentTimeTool,
   calculator: () => calculatorTool,
+  extract_image_exif: () => extractImageExifTool,
 };
 
 export function resolveTools(
