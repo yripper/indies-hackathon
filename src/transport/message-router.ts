@@ -9,7 +9,9 @@ import { toolCallsRepo } from '../db/queries/tool-calls';
 import { extractTrace } from '../agent/trace';
 import { withConversation } from '../agent/context';
 import { peekPendingAudio } from './audio-cache';
+import { peekPendingImage } from './image-cache';
 import { audioAnalysesRepo } from '../db/queries/audio-analyses';
+import { imageAnalysesRepo } from '../db/queries/image-analyses';
 
 type CompiledGraph = {
   invoke: (
@@ -150,43 +152,93 @@ async function handleIncomingMessageInner(
     model: deps.config.provider.model,
   });
 
-  // Peek pending audio (does not consume). MiniMax M2 rejects requests with
-  // more than one role=system message, so instead of injecting a second
-  // SystemMessage we pass the ephemeral note through ALS — agentNode appends
-  // it to the static system prompt content for THIS invocation only. History
-  // and DB stay clean of stale markers.
-  const pending = peekPendingAudio(msg.customerPhone);
-  let ephemeralSystemNote: string | undefined;
-  if (pending) {
-    const sourceDesc =
-      pending.source === 'direct'
+  // Peek pending audio and image (neither consumes). MiniMax M2 rejects
+  // requests with more than one role=system message, so we fold both hints
+  // into a single ephemeral note appended to the static system prompt for
+  // THIS turn only via ALS. History and DB stay clean of stale markers.
+  const pendingAudio = peekPendingAudio(msg.customerPhone);
+  const pendingImage = peekPendingImage(msg.customerPhone);
+  const notes: string[] = [];
+  if (pendingAudio) {
+    const src =
+      pendingAudio.source === 'direct'
         ? 'reenvío directo del usuario'
         : 'respuesta a un mensaje (reply-tag) del grupo';
-    ephemeralSystemNote = `Contexto interno actualizado para este turno: hay un audio pendiente de ${pending.durationSec} segundos en esta conversación, listo para analizar con la herramienta analyze_audio_deepfake. Origen: ${sourceDesc}. Aplicá las reglas de tu system prompt para audio pendiente.`;
-    console.log(
-      `[router] pending audio detected (dur=${pending.durationSec}s source=${pending.source}) → ephemeral note prepared`,
+    notes.push(
+      `Contexto interno actualizado para este turno: hay un audio pendiente de ${pendingAudio.durationSec} segundos en esta conversación, listo para analizar con la herramienta analyze_audio_deepfake. Origen: ${src}. Aplicá las reglas de tu system prompt para audio pendiente.`,
     );
-  } else {
-    console.log('[router] no pending audio for this conversation');
+    console.log(
+      `[router] pending audio detected (dur=${pendingAudio.durationSec}s source=${pendingAudio.source})`,
+    );
+  }
+  if (pendingImage) {
+    const src =
+      pendingImage.source === 'direct'
+        ? 'reenvío directo del usuario'
+        : 'respuesta a un mensaje (reply-tag) del grupo';
+    notes.push(
+      `Contexto interno actualizado para este turno: hay una imagen pendiente de análisis en esta conversación (mime=${pendingImage.mimetype}, ${pendingImage.bytes} bytes), lista para analizar con la herramienta analyze_image_deepfake. Origen: ${src}. Aplicá las reglas de tu system prompt para imagen pendiente.`,
+    );
+    console.log(
+      `[router] pending image detected (mime=${pendingImage.mimetype} bytes=${pendingImage.bytes} source=${pendingImage.source})`,
+    );
+  }
+  if (notes.length === 0) {
+    console.log('[router] no pending media for this conversation');
+  }
+  const ephemeralSystemNote = notes.length > 0 ? notes.join('\n\n') : undefined;
+
+  // Build the replay once. MiniMax-M2 (and other providers under load) anchor
+  // on the literal user-message text and dismiss system-prompt hints when the
+  // caption is a question like "¿es esta imagen real?" — they reply "no veo
+  // la imagen" even though the bytes are cached. Appending a per-turn marker
+  // to the last HumanMessage gives every provider the concrete in-message
+  // signal that the original prototype carried as "[Imagen adjunta: URL]".
+  // DB history stays untouched; only the in-flight replay carries the marker.
+  const replayMessages = history.map(toLangChainMessage);
+  if ((pendingAudio || pendingImage) && replayMessages.length > 0) {
+    const lastIdx = replayMessages.length - 1;
+    const last = replayMessages[lastIdx];
+    if (last instanceof HumanMessage && typeof last.content === 'string') {
+      const markers: string[] = [];
+      if (pendingImage) {
+        const kb = Math.max(1, Math.round(pendingImage.bytes / 1024));
+        markers.push(
+          `[adjuntó una imagen (${pendingImage.mimetype}, ${kb} KB) lista para analyze_image_deepfake]`,
+        );
+      }
+      if (pendingAudio) {
+        markers.push(
+          `[adjuntó un audio (${pendingAudio.durationSec}s, ${pendingAudio.mimetype}) listo para analyze_audio_deepfake]`,
+        );
+      }
+      replayMessages[lastIdx] = new HumanMessage({
+        content: `${last.content}\n\n${markers.join('\n')}`,
+      });
+    }
   }
 
   const startedAt = Date.now();
   try {
-    // ALS carries both the JID (for the tool's cache lookup) and the
-    // ephemeral system note (for agentNode to fold into the system prompt).
-    // thread_id stays on the DB UUID because that's what LangGraph's
-    // MemorySaver tracks across restarts.
+    // ALS carries the JID (for tool cache lookups) plus the ephemeral system
+    // note (for agentNode to fold into the system prompt) and the per-media
+    // DB recorder closures. Errors in the DB inserts are swallowed at the
+    // call site — a failed dashboard write must not break the user-facing
+    // reply.
     const rawState = await withConversation(
       {
         conversationId: msg.customerPhone,
         ephemeralSystemNote,
         sendProgress: (text: string) => deps.send(msg.customerPhone, text),
-        // Persist structured audio analysis events as the tool reports them.
-        // Closure binds conversation.id + run.id so the tool doesn't have to
-        // know about DB ids. Errors are swallowed at the call site — a failed
-        // dashboard write must not break the user-facing reply.
         recordAudioAnalysis: async (record) => {
           await audioAnalysesRepo.insert(deps.db, {
+            conversationId: conversation.id,
+            agentRunId: run.id,
+            ...record,
+          });
+        },
+        recordImageAnalysis: async (record) => {
+          await imageAnalysesRepo.insert(deps.db, {
             conversationId: conversation.id,
             agentRunId: run.id,
             ...record,
@@ -196,7 +248,7 @@ async function handleIncomingMessageInner(
       () =>
         Promise.race([
           deps.graph.invoke(
-            { messages: history.map(toLangChainMessage) },
+            { messages: replayMessages },
             { configurable: { thread_id: conversation.id } },
           ),
           timeoutPromise<unknown>(deps.config.limits.per_message_timeout_ms),
