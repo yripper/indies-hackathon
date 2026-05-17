@@ -1,0 +1,12 @@
+# Per-service: exclude unrelated subdirs when deploying the backend from repo root.
+# Each Railway service that deploys from a subdirectory should have its own scope.
+dashboard/
+landing/
+deepfake-service/
+sessions/
+.env
+.env.test
+*.log
+dist/
+node_modules/
+.playwright-mcp/
