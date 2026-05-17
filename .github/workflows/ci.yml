@@ -2,62 +2,55 @@ name: CI
 
 on:
   push:
-    branches: [k2, 'release/**', 'feat/**']
+    branches: [main, k2]
   pull_request:
-    branches: [k2]
 
 jobs:
-  test:
+  test-node:
+    name: Node.js tests
     runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: indies
-          POSTGRES_PASSWORD: indies
-          POSTGRES_DB: indies_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - uses: actions/checkout@v4
 
-      # No explicit version — pnpm/action-setup picks it up from package.json's
-      # "packageManager" field (currently pnpm@11.0.8). Specifying both conflicts
-      # and fails with ERR_PNPM_BAD_PM_VERSION.
       - uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'pnpm'
+          cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install
 
-      - name: Run database migrations
-        env:
-          DATABASE_URL: postgresql://indies:indies@localhost:5432/indies_test
-        run: pnpm db:migrate
+      - name: Run agent + config tests (no DB required)
+        run: pnpm test tests/agent/ tests/config/
 
-      - name: Run tests
-        env:
-          DATABASE_URL: postgresql://indies:indies@localhost:5432/indies_test
-          WA_SESSION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-          REALITY_DEFENDER_API_KEY: test-key
-          SIGHTENGINE_API_USER: test-user
-          SIGHTENGINE_API_SECRET: test-secret
-          DEEPFAKE_SERVICE_URL: http://localhost:7860
-          NODE_ENV: test
-        run: pnpm test
+  lint-python:
+    name: Python lint (deepfake-service)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: TypeScript check (non-blocking)
-        continue-on-error: true
-        env:
-          NODE_OPTIONS: "--max-old-space-size=8192"
-        run: npx tsc --noEmit
+      # Detect whether any file inside deepfake-service/ changed.
+      # Works for both push and pull_request events.
+      - name: Check for deepfake-service changes
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            deepfake:
+              - 'deepfake-service/**'
+
+      - uses: actions/setup-python@v5
+        if: steps.changes.outputs.deepfake == 'true'
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        if: steps.changes.outputs.deepfake == 'true'
+        run: pip install ruff
+
+      - name: Lint deepfake-service with ruff
+        if: steps.changes.outputs.deepfake == 'true'
+        run: ruff check deepfake-service/

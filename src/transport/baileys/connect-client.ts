@@ -1,8 +1,9 @@
-import type { FastifyBaseLogger } from 'fastify';
-import type { WAMessage } from '@whiskeysockets/baileys';
-import { writeFile } from 'node:fs/promises';
+import { writeFile, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import path from 'node:path';
+import type { FastifyBaseLogger } from 'fastify';
+import { downloadMediaMessage, type WAMessage } from '@whiskeysockets/baileys';
 import type { SessionManager } from './session-manager';
 import { putPendingAudio } from '../audio-cache';
 import { putPendingImage } from '../image-cache';
@@ -15,13 +16,22 @@ import {
   sanitizePushName,
   isMessageFlooding,
 } from '../../security/input-validation';
+import { shouldAutoAnalyze } from '../group-monitor';
+import { detectForwarding, type ForwardInfo } from '../forward-detector';
 
 export { unwrapMessage } from './unwrap-message';
 
 export type ConnectInput = {
   sessionsDir: string;
   sessionManager: SessionManager;
-  dispatchMessage: (customerPhone: string, customerName: string, text: string) => Promise<void>;
+  dispatchMessage: (
+    customerPhone: string,
+    customerName: string,
+    text: string,
+    forwardInfo?: ForwardInfo,
+  ) => Promise<void>;
+  /** Called for group messages when group monitoring is enabled. */
+  dispatchGroupMessage?: (groupJid: string, senderName: string, text: string) => Promise<void>;
   onQr: (qr: string) => void;
   onConnected: (phoneNumber: string, lid: string | null) => void;
   onDisconnected: () => void;
@@ -80,6 +90,7 @@ export async function connectClient(input: ConnectInput): Promise<void> {
         }
 
         const isGroup = remoteJid.endsWith('@g.us');
+        // Accept DMs (@s.whatsapp.net) and Baileys 7 @lid identifiers (privacy-mode users).
         const isDm = remoteJid.endsWith('@s.whatsapp.net') || remoteJid.endsWith('@lid');
         if (!isDm && !isGroup) {
           console.log(`[wa] drop: unsupported JID type ${remoteJid}`);
@@ -92,6 +103,22 @@ export async function connectClient(input: ConnectInput): Promise<void> {
         );
 
         if (isGroup) {
+          // Group auto-monitoring path: check if the message should be auto-analyzed
+          // (e.g. viral forwarded media or fact-check triggers).
+          const decision = shouldAutoAnalyze(m, remoteJid);
+          if (decision.analyze && decision.instruction) {
+            const dispatchGroup = input.dispatchGroupMessage;
+            if (dispatchGroup) {
+              const customerName = m.pushName ?? '';
+              dispatchGroup(remoteJid, customerName, decision.instruction).catch((err) => {
+                input.log.error({ err, jid: remoteJid }, 'group dispatchMessage failed');
+              });
+              continue;
+            }
+          }
+
+          // Fall back to mention-based routing for groups: only process if the
+          // bot is @-tagged in the message.
           const { phoneJid, lidJid } = input.sessionManager.getOwnJids();
           const mentioned = extractMentionedJids(m.message);
           const tagged = mentioned.some((j) => j === phoneJid || j === lidJid);
@@ -139,6 +166,7 @@ export async function connectClient(input: ConnectInput): Promise<void> {
         }
 
         const customerName = sanitizePushName(m.pushName);
+        const forwardInfo = detectForwarding(m);
 
         // If we're holding a pending audio dispatch for this JID (debounce
         // window open), the user's follow-up text counts as implicit consent.
@@ -151,7 +179,7 @@ export async function connectClient(input: ConnectInput): Promise<void> {
           console.log(
             `[wa] merging pending audio with follow-up text: "${text.slice(0, 120).replace(/\n/g, ' ')}"`,
           );
-          input.dispatchMessage(remoteJid, customerName, text).catch((err) => {
+          input.dispatchMessage(remoteJid, customerName, text, forwardInfo).catch((err) => {
             console.error(`[wa] ✗ dispatchMessage failed: ${err instanceof Error ? err.message : err}`);
           });
           continue;
@@ -163,7 +191,7 @@ export async function connectClient(input: ConnectInput): Promise<void> {
           clearTimeout(pendingImg.timer);
           pendingImageDispatches.delete(remoteJid);
           console.log(`[wa] merging pending image with follow-up text: "${text.slice(0, 120)}"`);
-          input.dispatchMessage(remoteJid, customerName, text).catch((err) => {
+          input.dispatchMessage(remoteJid, customerName, text, forwardInfo).catch((err) => {
             console.error(`[wa] ✗ dispatchMessage failed: ${err instanceof Error ? err.message : err}`);
           });
           continue;
@@ -175,14 +203,14 @@ export async function connectClient(input: ConnectInput): Promise<void> {
           clearTimeout(pendingVid.timer);
           pendingVideoDispatches.delete(remoteJid);
           console.log(`[wa] merging pending video with follow-up text: "${text.slice(0, 120)}"`);
-          input.dispatchMessage(remoteJid, customerName, text).catch((err) => {
+          input.dispatchMessage(remoteJid, customerName, text, forwardInfo).catch((err) => {
             console.error(`[wa] ✗ dispatchMessage failed: ${err instanceof Error ? err.message : err}`);
           });
           continue;
         }
 
         console.log(`[wa] → dispatching text: "${text.slice(0, 120).replace(/\n/g, ' ')}"`);
-        input.dispatchMessage(remoteJid, customerName, text).catch((err) => {
+        input.dispatchMessage(remoteJid, customerName, text, forwardInfo).catch((err) => {
           console.error(`[wa] ✗ dispatchMessage failed: ${err instanceof Error ? err.message : err}`);
           input.log.error({ err }, 'dispatchMessage failed');
         });
@@ -504,6 +532,36 @@ async function handleVideo(
   pendingVideoDispatches.set(remoteJid, { timer, pushName: customerName });
 }
 
+/**
+ * Download a video via the Baileys downloadMediaMessage API (feat branch path),
+ * write it to a temp file, and dispatch the path + optional caption as a text
+ * message. Used when the video arrives without the session-manager download
+ * wrapper (e.g. in tests or alternate transports).
+ *
+ * Give the agent 60 s to read the file before cleaning up.
+ */
+async function handleVideoMessage(
+  fullMessage: WAMessage,
+  remoteJid: string,
+  customerName: string,
+  caption: string | null,
+  forwardInfo: ForwardInfo,
+  input: ConnectInput,
+): Promise<void> {
+  const buffer = (await downloadMediaMessage(fullMessage, 'buffer', {})) as Buffer;
+  const tmpPath = join(tmpdir(), `wa_video_${Date.now()}.mp4`);
+  await writeFile(tmpPath, buffer);
+
+  const text = caption
+    ? `[VIDEO:${tmpPath}] ${caption}`
+    : `[VIDEO:${tmpPath}] El usuario envió un video. Analiza si es un deepfake.`;
+
+  await input.dispatchMessage(remoteJid, customerName, text, forwardInfo);
+
+  // Give the agent 60 s to read the file before cleaning up.
+  setTimeout(() => unlink(tmpPath).catch(() => {}), 60_000);
+}
+
 // Mentions can sit in contextInfo of the text wrapper OR of the media itself
 // when the caption carries the @tag (e.g. "@bot ¿es esta imagen real?" sent
 // as the image's caption rather than as a follow-up text). Check all four
@@ -540,3 +598,7 @@ function extractText(message: unknown): string | null {
     null
   );
 }
+
+// handleVideoMessage is defined above but may be used from outside this module
+// in future integrations; keep it exported for discoverability.
+export { handleVideoMessage };
