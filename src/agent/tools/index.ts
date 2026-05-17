@@ -21,6 +21,8 @@ import {
 import { verificarNoticiaTool } from './fact-check-claim';
 import { traceSourceTool } from './trace-source';
 import { compareImagesTool } from './compare-images';
+import { transcribeAudioTool } from './transcribe-audio';
+import { getUserStatsTool } from './user-stats';
 
 export type SendImageFn = (imageBuffer: Buffer, caption?: string) => Promise<void>;
 
@@ -50,8 +52,10 @@ function buildRegistry(
       ? createScanUrlDeepfakeTool(sendImage)
       : scanUrlDeepfakeTool,
     verificar_noticia: verificarNoticiaTool,
+    transcribe_audio: transcribeAudioTool,
     trace_image_source: traceSourceTool,
     compare_images: compareImagesTool,
+    get_user_stats: getUserStatsTool,
   };
 }
 
