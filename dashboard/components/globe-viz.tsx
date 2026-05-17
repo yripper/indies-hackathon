@@ -98,9 +98,9 @@ export function GlobeViz({
       >
         <defs>
           <radialGradient id="globeGrad" cx="35%" cy="30%">
-            <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="50%" stopColor="#1e40af" />
-            <stop offset="100%" stopColor="#1e3a5f" />
+            <stop offset="0%" stopColor="#10b981" />
+            <stop offset="50%" stopColor="#065f46" />
+            <stop offset="100%" stopColor="#0a2e23" />
           </radialGradient>
           <filter id="pointGlow" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="3" result="blur" />
@@ -125,7 +125,7 @@ export function GlobeViz({
               rx={ellipseRx}
               ry={ellipseRx * 0.12}
               fill="none"
-              stroke="rgba(147,197,253,0.25)"
+              stroke="rgba(52,211,153,0.2)"
               strokeWidth="1"
             />
           );
@@ -141,7 +141,7 @@ export function GlobeViz({
               y1={p1.y}
               x2={p3.x}
               y2={p3.y}
-              stroke="rgba(147,197,253,0.2)"
+              stroke="rgba(52,211,153,0.15)"
               strokeWidth="1"
             />
           );

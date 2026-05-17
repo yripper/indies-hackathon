@@ -48,46 +48,46 @@ function formatTimeAgo(dateStr: string): string {
 
 export default function PublicLandingPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950">
-      <header className="border-b border-slate-800/50 backdrop-blur-sm bg-slate-950/50">
+    <div className="min-h-screen bg-[#030712]">
+      <header className="border-b border-[#1f2937] backdrop-blur-sm bg-[#030712]/80">
         <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <span className="text-xl font-bold text-white">V</span>
             </div>
-            <span className="text-xl font-bold text-white tracking-tight">VERITAS</span>
+            <span className="text-xl font-bold text-[#f9fafb] tracking-tight">VERITAS</span>
           </div>
           <nav className="flex gap-6 text-sm font-medium">
-            <Link href="/public/trends" className="text-cyan-400 hover:text-cyan-300 transition">Tendencias</Link>
-            <Link href="/public/cases" className="text-slate-300 hover:text-white transition">Casos</Link>
-            <Link href="/public/subscribe" className="text-slate-300 hover:text-white transition">Suscribirse</Link>
-            <Link href="/public/press" className="text-slate-300 hover:text-white transition">Prensa</Link>
+            <Link href="/public/trends" className="text-emerald-400 hover:text-emerald-300 transition">Tendencias</Link>
+            <Link href="/public/cases" className="text-[#9ca3af] hover:text-[#f9fafb] transition">Casos</Link>
+            <Link href="/public/subscribe" className="text-[#9ca3af] hover:text-[#f9fafb] transition">Suscribirse</Link>
+            <Link href="/public/press" className="text-[#9ca3af] hover:text-[#f9fafb] transition">Prensa</Link>
           </nav>
         </div>
       </header>
 
       <main>
         <section className="mx-auto max-w-6xl px-6 py-20 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-sm font-medium mb-6">
-            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm font-medium mb-6">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             Monitoreo activo 24/7
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 tracking-tight">
-            Radar de <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Desinformación</span>
+          <h1 className="text-5xl md:text-6xl font-bold text-[#f9fafb] mb-4 tracking-tight">
+            Radar de <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-300">Desinformación</span>
           </h1>
-          <p className="text-xl text-slate-400 max-w-2xl mx-auto mb-10">
+          <p className="text-xl text-[#9ca3af] max-w-2xl mx-auto mb-10">
             Plataforma de monitoreo global para detectar deepfakes, noticias falsas y campañas de desinformación en tiempo real.
           </p>
           <div className="flex gap-4 justify-center">
             <Link
               href="/public/trends"
-              className="px-8 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl font-semibold shadow-lg shadow-blue-500/25 transition"
+              className="px-8 py-3 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white rounded-xl font-semibold shadow-lg shadow-emerald-500/25 transition"
             >
               Ver Tendencias
             </Link>
             <Link
               href="/public/cases"
-              className="px-8 py-3 bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 text-white rounded-xl font-semibold transition"
+              className="px-8 py-3 bg-[#111827] hover:bg-[#1f2937] border border-[#1f2937] text-[#f9fafb] rounded-xl font-semibold transition"
             >
               Explorar Casos
             </Link>
@@ -95,10 +95,10 @@ export default function PublicLandingPage() {
         </section>
 
         <section className="mx-auto max-w-6xl px-6 pb-16">
-          <div className="rounded-3xl overflow-hidden border border-slate-700/50 bg-slate-900/30 backdrop-blur-sm">
-            <div className="p-4 border-b border-slate-800/50 flex items-center justify-between">
+          <div className="rounded-3xl overflow-hidden border border-[#1f2937] bg-[#0a0f1a]">
+            <div className="p-4 border-b border-[#1f2937] flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <h2 className="text-white font-semibold">Globo de Desinformación</h2>
+                <h2 className="text-[#f9fafb] font-semibold">Globo de Desinformación</h2>
                 <span className="px-2 py-0.5 rounded text-xs bg-red-500/20 text-red-400">{MOCK_STATS.cases_24h} casos hoy</span>
               </div>
               <div className="flex items-center gap-4 text-xs">
@@ -107,7 +107,7 @@ export default function PublicLandingPage() {
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" /> Real</span>
               </div>
             </div>
-            <div className="flex justify-center p-6 bg-gradient-to-b from-slate-900/50 to-slate-950/50">
+            <div className="flex justify-center p-6 bg-gradient-to-b from-[#0a0f1a] to-[#030712]">
               <GlobeWrapper points={GLOBE_POINTS} width={550} height={550} />
             </div>
           </div>
@@ -115,35 +115,35 @@ export default function PublicLandingPage() {
 
         <section className="mx-auto max-w-6xl px-6 pb-16">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50">
-              <div className="text-3xl font-bold text-white mb-1">{MOCK_STATS.cases_24h}</div>
-              <div className="text-sm text-slate-400">Casos detectados hoy</div>
+            <div className="p-6 rounded-2xl bg-[#111827] border border-[#1f2937]">
+              <div className="text-3xl font-bold text-[#f9fafb] mb-1">{MOCK_STATS.cases_24h}</div>
+              <div className="text-sm text-[#9ca3af]">Casos detectados hoy</div>
             </div>
-            <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50">
-              <div className="text-3xl font-bold text-white mb-1">{MOCK_STATS.cases_7d}</div>
-              <div className="text-sm text-slate-400">Casos últimos 7 días</div>
+            <div className="p-6 rounded-2xl bg-[#111827] border border-[#1f2937]">
+              <div className="text-3xl font-bold text-[#f9fafb] mb-1">{MOCK_STATS.cases_7d}</div>
+              <div className="text-sm text-[#9ca3af]">Casos últimos 7 días</div>
             </div>
-            <div className="p-6 rounded-2xl bg-gradient-to-br from-red-500/10 to-slate-900/50 border border-red-500/20">
+            <div className="p-6 rounded-2xl bg-gradient-to-br from-red-500/10 to-[#111827] border border-red-500/20">
               <div className="text-3xl font-bold text-red-400 mb-1">{MOCK_STATS.darkweb_total}</div>
-              <div className="text-sm text-slate-400">Campañas Dark Web</div>
+              <div className="text-sm text-[#9ca3af]">Campañas Dark Web</div>
             </div>
-            <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-slate-700/50">
-              <div className="text-3xl font-bold text-cyan-400 mb-1">{MOCK_STATS.top_keyword}</div>
-              <div className="text-sm text-slate-400">Keyword más usado</div>
+            <div className="p-6 rounded-2xl bg-[#111827] border border-[#1f2937]">
+              <div className="text-3xl font-bold text-emerald-400 mb-1">{MOCK_STATS.top_keyword}</div>
+              <div className="text-sm text-[#9ca3af]">Keyword más usado</div>
             </div>
           </div>
         </section>
 
         <section className="mx-auto max-w-6xl px-6 pb-16">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-white">Casos Recientes</h2>
-            <Link href="/public/cases" className="text-sm text-cyan-400 hover:text-cyan-300">Ver todos →</Link>
+            <h2 className="text-2xl font-bold text-[#f9fafb]">Casos Recientes</h2>
+            <Link href="/public/cases" className="text-sm text-emerald-400 hover:text-emerald-300">Ver todos →</Link>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {MOCK_CASES.map((c) => (
               <div
                 key={c.id}
-                className="group p-5 rounded-2xl bg-slate-800/30 border border-slate-700/50 hover:border-cyan-500/50 transition-all hover:shadow-lg hover:shadow-cyan-500/5"
+                className="group p-5 rounded-2xl bg-[#111827] border border-[#1f2937] hover:border-emerald-500/50 transition-all hover:shadow-lg hover:shadow-emerald-500/5"
               >
                 <div className="flex items-center justify-between mb-3">
                   <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
@@ -153,19 +153,19 @@ export default function PublicLandingPage() {
                   }`}>
                     {c.tier.toUpperCase()}
                   </span>
-                  <span className="text-xs text-slate-500">{formatTimeAgo(c.created_at)}</span>
+                  <span className="text-xs text-[#6b7280]">{formatTimeAgo(c.created_at)}</span>
                 </div>
-                <p className="text-sm text-slate-300 mb-3 line-clamp-2">{c.summary}</p>
+                <p className="text-sm text-[#9ca3af] mb-3 line-clamp-2">{c.summary}</p>
                 <div className="flex flex-wrap gap-1.5 mb-3">
                   {c.keywords.slice(0, 3).map((kw) => (
-                    <span key={kw} className="px-2 py-0.5 rounded bg-slate-700/50 text-xs text-slate-400">
+                    <span key={kw} className="px-2 py-0.5 rounded bg-[#1f2937] text-xs text-[#6b7280]">
                       {kw}
                     </span>
                   ))}
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">{c.country}</span>
-                  <span className="text-sm font-mono text-slate-300">{Math.round(c.score * 100)}%</span>
+                  <span className="text-xs text-[#6b7280]">{c.country}</span>
+                  <span className="text-sm font-mono text-[#9ca3af]">{Math.round(c.score * 100)}%</span>
                 </div>
               </div>
             ))}
@@ -173,12 +173,12 @@ export default function PublicLandingPage() {
         </section>
 
         <section className="mx-auto max-w-4xl px-6 pb-20 text-center">
-          <div className="p-8 rounded-3xl bg-gradient-to-r from-blue-600/20 to-cyan-600/20 border border-blue-500/30">
-            <h2 className="text-2xl font-bold text-white mb-2">Mantente Protegido</h2>
-            <p className="text-slate-400 mb-6">Suscríbete para recibir alertas sobre nuevas campañas de desinformación en tu región</p>
+          <div className="p-8 rounded-3xl bg-gradient-to-r from-emerald-600/20 to-emerald-500/10 border border-emerald-500/30">
+            <h2 className="text-2xl font-bold text-[#f9fafb] mb-2">Mantente Protegido</h2>
+            <p className="text-[#9ca3af] mb-6">Suscríbete para recibir alertas sobre nuevas campañas de desinformación en tu región</p>
             <Link
               href="/public/subscribe"
-              className="inline-block px-8 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-semibold rounded-xl transition"
+              className="inline-block px-8 py-3 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold rounded-xl transition shadow-lg shadow-emerald-500/25"
             >
               Suscribirse Gratis
             </Link>
@@ -186,8 +186,8 @@ export default function PublicLandingPage() {
         </section>
       </main>
 
-      <footer className="border-t border-slate-800/50">
-        <div className="mx-auto max-w-6xl px-6 py-8 flex items-center justify-between text-sm text-slate-500">
+      <footer className="border-t border-[#1f2937]">
+        <div className="mx-auto max-w-6xl px-6 py-8 flex items-center justify-between text-sm text-[#6b7280]">
           <span>VERITAS © 2026 · Plataforma Anti-Desinformación</span>
           <span>hack@latam 2026</span>
         </div>

@@ -31,9 +31,9 @@ function TierBadge({ tier }: { tier: string }) {
 
 function MediaIcon({ type }: { type: string }) {
   if (type === 'video') return <span className="text-rose-400">🎬</span>;
-  if (type === 'audio') return <span className="text-sky-400">🎙️</span>;
+  if (type === 'audio') return <span className="text-emerald-400">🎙️</span>;
   if (type === 'image') return <span className="text-violet-400">🖼️</span>;
-  return <span className="text-slate-400">📄</span>;
+  return <span className="text-[#9ca3af]">📄</span>;
 }
 
 function formatDate(dateStr: string): string {
@@ -56,35 +56,35 @@ export default function CasesPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950">
-      <header className="border-b border-slate-800/50 backdrop-blur-sm bg-slate-950/50">
+    <div className="min-h-screen bg-[#030712]">
+      <header className="border-b border-[#1f2937] backdrop-blur-sm bg-[#030712]/80">
         <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
           <Link href="/public" className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <span className="text-xl font-bold text-white">V</span>
             </div>
-            <span className="text-xl font-bold text-white tracking-tight">VERITAS</span>
+            <span className="text-xl font-bold text-[#f9fafb] tracking-tight">VERITAS</span>
           </Link>
           <nav className="flex gap-6 text-sm font-medium">
-            <Link href="/public/trends" className="text-slate-300 hover:text-white transition">Tendencias</Link>
-            <Link href="/public/cases" className="text-cyan-400">Casos</Link>
-            <Link href="/public/subscribe" className="text-slate-300 hover:text-white transition">Suscribirse</Link>
-            <Link href="/public/press" className="text-slate-300 hover:text-white transition">Prensa</Link>
+            <Link href="/public/trends" className="text-[#9ca3af] hover:text-[#f9fafb] transition">Tendencias</Link>
+            <Link href="/public/cases" className="text-emerald-400">Casos</Link>
+            <Link href="/public/subscribe" className="text-[#9ca3af] hover:text-[#f9fafb] transition">Suscribirse</Link>
+            <Link href="/public/press" className="text-[#9ca3af] hover:text-[#f9fafb] transition">Prensa</Link>
           </nav>
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-6 py-10">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Casos Verificados</h1>
-          <p className="text-slate-400">{MOCK_CASES.length} casos analizados · Última actualización hace 2 horas</p>
+          <h1 className="text-3xl font-bold text-[#f9fafb] mb-2">Casos Verificados</h1>
+          <p className="text-[#9ca3af]">{MOCK_CASES.length} casos analizados · Última actualización hace 2 horas</p>
         </div>
 
         <div className="flex gap-4 mb-6">
           <select
             value={tierFilter}
             onChange={(e) => setTierFilter(e.target.value)}
-            className="px-4 py-2.5 rounded-xl bg-slate-800/50 border border-slate-700 text-white text-sm focus:outline-none focus:border-cyan-500"
+            className="px-4 py-2.5 rounded-xl bg-[#111827] border border-[#1f2937] text-[#f9fafb] text-sm focus:outline-none focus:border-emerald-500"
           >
             <option value="">Todos los veredictos</option>
             <option value="fake">Fake</option>
@@ -94,7 +94,7 @@ export default function CasesPage() {
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-4 py-2.5 rounded-xl bg-slate-800/50 border border-slate-700 text-white text-sm focus:outline-none focus:border-cyan-500"
+            className="px-4 py-2.5 rounded-xl bg-[#111827] border border-[#1f2937] text-[#f9fafb] text-sm focus:outline-none focus:border-emerald-500"
           >
             <option value="">Todos los tipos</option>
             <option value="image">Imágenes</option>
@@ -105,7 +105,7 @@ export default function CasesPage() {
           {(tierFilter || typeFilter) && (
             <button
               onClick={() => { setTierFilter(''); setTypeFilter(''); }}
-              className="px-4 py-2.5 rounded-xl bg-slate-800/50 border border-slate-700 text-slate-400 text-sm hover:text-white transition"
+              className="px-4 py-2.5 rounded-xl bg-[#111827] border border-[#1f2937] text-[#6b7280] text-sm hover:text-[#f9fafb] transition"
             >
               Limpiar filtros
             </button>
@@ -114,36 +114,36 @@ export default function CasesPage() {
 
         <div className="space-y-4">
           {filtered.length === 0 && (
-            <div className="text-center py-16 text-slate-500">
+            <div className="text-center py-16 text-[#6b7280]">
               No hay casos que coincidan con los filtros seleccionados
             </div>
           )}
           {filtered.map((c) => (
             <div
               key={c.id}
-              className="rounded-2xl border border-slate-700/50 bg-slate-900/30 backdrop-blur-sm p-6 hover:border-cyan-500/30 transition"
+              className="rounded-2xl border border-[#1f2937] bg-[#0a0f1a] p-6 hover:border-emerald-500/30 transition"
             >
               <div className="flex items-start justify-between gap-4 mb-4">
                 <div className="flex items-center gap-3">
                   <MediaIcon type={c.mediaType} />
                   <TierBadge tier={c.tier} />
-                  <span className="text-sm text-slate-500">{c.country}</span>
-                  <span className="text-xs text-slate-600">•</span>
-                  <span className="text-xs text-slate-500">{formatDate(c.created_at)}</span>
+                  <span className="text-sm text-[#6b7280]">{c.country}</span>
+                  <span className="text-xs text-[#6b7280]">•</span>
+                  <span className="text-xs text-[#6b7280]">{formatDate(c.created_at)}</span>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-white">{Math.round(c.score * 100)}%</div>
-                  <div className="text-xs text-slate-500">confianza</div>
+                  <div className="text-2xl font-bold text-[#f9fafb]">{Math.round(c.score * 100)}%</div>
+                  <div className="text-xs text-[#6b7280]">confianza</div>
                 </div>
               </div>
 
-              <p className="text-slate-300 mb-4 leading-relaxed">{c.summary}</p>
+              <p className="text-[#9ca3af] mb-4 leading-relaxed">{c.summary}</p>
 
               <div className="flex flex-wrap gap-2 mb-4">
                 {c.keywords.map((kw) => (
                   <span
                     key={kw}
-                    className="px-2.5 py-1 rounded-lg bg-slate-800/50 text-slate-400 text-xs"
+                    className="px-2.5 py-1 rounded-lg bg-[#111827] text-[#6b7280] text-xs"
                   >
                     {kw}
                   </span>
@@ -151,8 +151,8 @@ export default function CasesPage() {
               </div>
 
               {c.sources.length > 0 && (
-                <div className="pt-4 border-t border-slate-800/50">
-                  <div className="text-xs text-slate-500 mb-2 font-medium">Fuentes verificadas:</div>
+                <div className="pt-4 border-t border-[#1f2937]">
+                  <div className="text-xs text-[#6b7280] mb-2 font-medium">Fuentes verificadas:</div>
                   <div className="space-y-1">
                     {c.sources.map((s, i) => (
                       <a
@@ -160,7 +160,7 @@ export default function CasesPage() {
                         href={s}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block text-xs text-cyan-400 hover:text-cyan-300 truncate"
+                        className="block text-xs text-emerald-400 hover:text-emerald-300 truncate"
                       >
                         {s}
                       </a>

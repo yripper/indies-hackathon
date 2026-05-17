@@ -39,20 +39,20 @@ export default function SubscribePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950">
-      <header className="border-b border-slate-800/50 backdrop-blur-sm bg-slate-950/50">
+    <div className="min-h-screen bg-[#030712]">
+      <header className="border-b border-[#1f2937] backdrop-blur-sm bg-[#030712]/80">
         <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
           <Link href="/public" className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <span className="text-xl font-bold text-white">V</span>
             </div>
-            <span className="text-xl font-bold text-white tracking-tight">VERITAS</span>
+            <span className="text-xl font-bold text-[#f9fafb] tracking-tight">VERITAS</span>
           </Link>
           <nav className="flex gap-6 text-sm font-medium">
-            <Link href="/public/trends" className="text-slate-300 hover:text-white transition">Tendencias</Link>
-            <Link href="/public/cases" className="text-slate-300 hover:text-white transition">Casos</Link>
-            <Link href="/public/subscribe" className="text-cyan-400">Suscribirse</Link>
-            <Link href="/public/press" className="text-slate-300 hover:text-white transition">Prensa</Link>
+            <Link href="/public/trends" className="text-[#9ca3af] hover:text-[#f9fafb] transition">Tendencias</Link>
+            <Link href="/public/cases" className="text-[#9ca3af] hover:text-[#f9fafb] transition">Casos</Link>
+            <Link href="/public/subscribe" className="text-emerald-400">Suscribirse</Link>
+            <Link href="/public/press" className="text-[#9ca3af] hover:text-[#f9fafb] transition">Prensa</Link>
           </nav>
         </div>
       </header>
@@ -60,16 +60,16 @@ export default function SubscribePage() {
       <main className="mx-auto max-w-xl px-6 py-16">
         {status === 'success' ? (
           <div className="text-center">
-            <div className="inline-flex h-20 w-20 items-center justify-center rounded-full bg-green-500/20 mb-6">
-              <span className="text-4xl">✓</span>
+            <div className="inline-flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/20 mb-6">
+              <span className="text-4xl text-emerald-400">✓</span>
             </div>
-            <h2 className="text-3xl font-bold text-white mb-4">¡Suscrito!</h2>
-            <p className="text-slate-400 mb-8">
+            <h2 className="text-3xl font-bold text-[#f9fafb] mb-4">¡Suscrito!</h2>
+            <p className="text-[#9ca3af] mb-8">
               {message}
             </p>
             <Link
               href="/public"
-              className="inline-block px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition"
+              className="inline-block px-6 py-3 bg-[#111827] hover:bg-[#1f2937] border border-[#1f2937] text-[#f9fafb] rounded-xl font-medium transition"
             >
               Volver al inicio
             </Link>
@@ -77,15 +77,15 @@ export default function SubscribePage() {
         ) : (
           <>
             <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-white mb-2">Suscríbete a VERITAS</h1>
-              <p className="text-slate-400">
+              <h1 className="text-3xl font-bold text-[#f9fafb] mb-2">Suscríbete a VERITAS</h1>
+              <p className="text-[#9ca3af]">
                 Recibe alertas sobre nuevas campañas de desinformación detectadas en tiempo real.
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+                <label htmlFor="email" className="block text-sm font-medium text-[#9ca3af] mb-2">
                   Email
                 </label>
                 <input
@@ -95,12 +95,12 @@ export default function SubscribePage() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="tu@email.com"
                   required
-                  className="w-full px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition"
+                  className="w-full px-4 py-3 rounded-xl bg-[#111827] border border-[#1f2937] text-[#f9fafb] placeholder-[#6b7280] focus:outline-none focus:border-emerald-500 transition"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-3">
+                <label className="block text-sm font-medium text-[#9ca3af] mb-3">
                   Tópicos de interés
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -111,8 +111,8 @@ export default function SubscribePage() {
                       onClick={() => toggleTopic(topic)}
                       className={`px-3 py-1.5 rounded-full text-sm transition ${
                         selectedTopics.includes(topic)
-                          ? 'bg-cyan-600 text-white'
-                          : 'bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 border border-slate-700'
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-[#111827] text-[#9ca3af] hover:bg-[#1f2937] border border-[#1f2937]'
                       }`}
                     >
                       {topic}
@@ -122,14 +122,14 @@ export default function SubscribePage() {
               </div>
 
               <div>
-                <label htmlFor="frequency" className="block text-sm font-medium text-slate-300 mb-2">
+                <label htmlFor="frequency" className="block text-sm font-medium text-[#9ca3af] mb-2">
                   Frecuencia de alertas
                 </label>
                 <select
                   id="frequency"
                   value={frequency}
                   onChange={(e) => setFrequency(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700 text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full px-4 py-3 rounded-xl bg-[#111827] border border-[#1f2937] text-[#f9fafb] focus:outline-none focus:border-emerald-500"
                 >
                   <option value="realtime">En tiempo real</option>
                   <option value="daily">Diario (resumen diario)</option>
@@ -146,13 +146,13 @@ export default function SubscribePage() {
               <button
                 type="submit"
                 disabled={status === 'loading'}
-                className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 disabled:opacity-50 text-white font-semibold transition shadow-lg shadow-blue-500/25"
+                className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 disabled:opacity-50 text-white font-semibold transition shadow-lg shadow-emerald-500/25"
               >
                 {status === 'loading' ? 'Suscribiendo...' : 'Suscribirse Gratis'}
               </button>
             </form>
 
-            <p className="text-center text-xs text-slate-500 mt-6">
+            <p className="text-center text-xs text-[#6b7280] mt-6">
               Al suscribirte aceptas recibir emails de VERITAS. Puedes darte de baja en cualquier momento.
               No compartimos tu email con terceros.
             </p>

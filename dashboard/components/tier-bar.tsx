@@ -18,31 +18,31 @@ export function TierBar({
       key: "fake" as const,
       count: counts.fake,
       pct: (counts.fake / safe) * 100,
-      bar: "bg-rose-500 dark:bg-rose-400",
-      dot: "bg-rose-500 dark:bg-rose-400",
+      bar: "bg-[#ef4444]",
+      dot: "bg-[#ef4444]",
       label: "Generado por IA",
     },
     {
       key: "uncertain" as const,
       count: counts.uncertain,
       pct: (counts.uncertain / safe) * 100,
-      bar: "bg-amber-400 dark:bg-amber-300",
-      dot: "bg-amber-400 dark:bg-amber-300",
+      bar: "bg-[#fbbf24]",
+      dot: "bg-[#fbbf24]",
       label: "Zona gris",
     },
     {
       key: "real" as const,
       count: counts.real,
       pct: (counts.real / safe) * 100,
-      bar: "bg-emerald-500 dark:bg-emerald-400",
-      dot: "bg-emerald-500 dark:bg-emerald-400",
+      bar: "bg-[#10b981]",
+      dot: "bg-[#10b981]",
       label: "Real",
     },
   ];
 
   return (
     <div>
-      <div className="flex h-3 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-[#1f2937]">
         {total === 0 ? null : (
           <>
             {segments.map((s) =>
@@ -63,8 +63,8 @@ export function TierBar({
           {segments.map((s) => (
             <div key={s.key} className="flex items-center gap-1.5">
               <span className={`h-2 w-2 rounded-full ${s.dot}`} />
-              <span className="text-zinc-600 dark:text-zinc-300">{s.label}</span>
-              <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-50">
+              <span className="text-[#9ca3af]">{s.label}</span>
+              <span className="font-mono font-semibold text-[#f9fafb]">
                 {s.count}
               </span>
             </div>

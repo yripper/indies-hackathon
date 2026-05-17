@@ -56,34 +56,34 @@ export default function TrendsPage() {
   const maxKeywordCount = KEYWORDS[0]?.count || 1;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950">
-      <header className="border-b border-slate-800/50 backdrop-blur-sm bg-slate-950/50">
+    <div className="min-h-screen bg-[#030712]">
+      <header className="border-b border-[#1f2937] backdrop-blur-sm bg-[#030712]/80">
         <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
           <Link href="/public" className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <span className="text-xl font-bold text-white">V</span>
             </div>
-            <span className="text-xl font-bold text-white tracking-tight">VERITAS</span>
+            <span className="text-xl font-bold text-[#f9fafb] tracking-tight">VERITAS</span>
           </Link>
           <nav className="flex gap-6 text-sm font-medium">
-            <Link href="/public/trends" className="text-cyan-400">Tendencias</Link>
-            <Link href="/public/cases" className="text-slate-300 hover:text-white transition">Casos</Link>
-            <Link href="/public/subscribe" className="text-slate-300 hover:text-white transition">Suscribirse</Link>
-            <Link href="/public/press" className="text-slate-300 hover:text-white transition">Prensa</Link>
+            <Link href="/public/trends" className="text-emerald-400">Tendencias</Link>
+            <Link href="/public/cases" className="text-[#9ca3af] hover:text-[#f9fafb] transition">Casos</Link>
+            <Link href="/public/subscribe" className="text-[#9ca3af] hover:text-[#f9fafb] transition">Suscribirse</Link>
+            <Link href="/public/press" className="text-[#9ca3af] hover:text-[#f9fafb] transition">Prensa</Link>
           </nav>
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-6 py-10">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Tendencias de Desinformación</h1>
-          <p className="text-slate-400">Monitoreo global en tiempo real · Datos actualizados cada hora</p>
+          <h1 className="text-3xl font-bold text-[#f9fafb] mb-2">Tendencias de Desinformación</h1>
+          <p className="text-[#9ca3af]">Monitoreo global en tiempo real · Datos actualizados cada hora</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="rounded-2xl border border-slate-700/50 bg-slate-900/30 backdrop-blur-sm overflow-hidden">
-            <div className="p-4 border-b border-slate-800/50">
-              <h2 className="text-white font-semibold">Distribución Global</h2>
+          <div className="rounded-2xl border border-[#1f2937] bg-[#0a0f1a] overflow-hidden">
+            <div className="p-4 border-b border-[#1f2937]">
+              <h2 className="text-[#f9fafb] font-semibold">Distribución Global</h2>
             </div>
             <div className="p-6 flex justify-center">
               <GlobeWrapper points={GLOBE_POINTS} width={450} height={450} />
@@ -91,39 +91,39 @@ export default function TrendsPage() {
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-700/50 bg-slate-900/30 backdrop-blur-sm p-4">
-              <h3 className="text-white font-semibold mb-4">Top Keywords</h3>
+            <div className="rounded-2xl border border-[#1f2937] bg-[#0a0f1a] p-4">
+              <h3 className="text-[#f9fafb] font-semibold mb-4">Top Keywords</h3>
               <div className="space-y-3">
                 {KEYWORDS.map((kw, i) => (
                   <div key={kw.keyword} className="flex items-center gap-3">
-                    <span className="w-5 text-xs text-slate-500 text-right">{i + 1}</span>
-                    <div className="flex-1 bg-slate-800/50 rounded-full h-3 overflow-hidden">
+                    <span className="w-5 text-xs text-[#6b7280] text-right">{i + 1}</span>
+                    <div className="flex-1 bg-[#111827] rounded-full h-3 overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full transition-all"
+                        className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all"
                         style={{ width: `${(kw.count / maxKeywordCount) * 100}%` }}
                       />
                     </div>
-                    <span className="text-sm text-white w-36 truncate">{kw.keyword}</span>
-                    <span className="text-xs text-slate-500 w-12 text-right">{kw.count}</span>
+                    <span className="text-sm text-[#f9fafb] w-36 truncate">{kw.keyword}</span>
+                    <span className="text-xs text-[#6b7280] w-12 text-right">{kw.count}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-700/50 bg-slate-900/30 backdrop-blur-sm p-4">
-              <h3 className="text-white font-semibold mb-4">Por País</h3>
+            <div className="rounded-2xl border border-[#1f2937] bg-[#0a0f1a] p-4">
+              <h3 className="text-[#f9fafb] font-semibold mb-4">Por País</h3>
               <div className="space-y-2">
                 {COUNTRIES.map((c) => (
-                  <div key={c.country} className="flex items-center justify-between py-1.5 border-b border-slate-800/50 last:border-0">
-                    <span className="text-sm text-white">{c.country}</span>
+                  <div key={c.country} className="flex items-center justify-between py-1.5 border-b border-[#1f2937] last:border-0">
+                    <span className="text-sm text-[#f9fafb]">{c.country}</span>
                     <div className="flex items-center gap-3">
-                      <div className="w-24 bg-slate-800/50 rounded-full h-2 overflow-hidden">
+                      <div className="w-24 bg-[#111827] rounded-full h-2 overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full"
+                          className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full"
                           style={{ width: `${(c.count / COUNTRIES[0].count) * 100}%` }}
                         />
                       </div>
-                      <span className="text-sm text-slate-400 w-12 text-right">{c.count}</span>
+                      <span className="text-sm text-[#9ca3af] w-12 text-right">{c.count}</span>
                     </div>
                   </div>
                 ))}
@@ -132,8 +132,8 @@ export default function TrendsPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-700/50 bg-slate-900/30 backdrop-blur-sm p-6 mb-8">
-          <h3 className="text-white font-semibold mb-4">Casos por Veredicto</h3>
+        <div className="rounded-2xl border border-[#1f2937] bg-[#0a0f1a] p-6 mb-8">
+          <h3 className="text-[#f9fafb] font-semibold mb-4">Casos por Veredicto</h3>
           <div className="grid grid-cols-3 gap-4">
             {TIER_STATS.map((t) => (
               <div key={t.tier} className={`rounded-xl p-5 text-center ${
@@ -148,15 +148,15 @@ export default function TrendsPage() {
                 }`}>
                   {t.tier.toUpperCase()}
                 </div>
-                <div className="text-4xl font-bold text-white">{t.count.toLocaleString()}</div>
-                <div className="text-xs text-slate-500 mt-1">casos detectados</div>
+                <div className="text-4xl font-bold text-[#f9fafb]">{t.count.toLocaleString()}</div>
+                <div className="text-xs text-[#6b7280] mt-1">casos detectados</div>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-700/50 bg-slate-900/30 backdrop-blur-sm p-6">
-          <h3 className="text-white font-semibold mb-4">Topics Dark Web</h3>
+        <div className="rounded-2xl border border-[#1f2937] bg-[#0a0f1a] p-6">
+          <h3 className="text-[#f9fafb] font-semibold mb-4">Topics Dark Web</h3>
           <div className="flex flex-wrap gap-2">
             {DARKWEB_TOPICS.map((topic) => (
               <span
