@@ -1,101 +1,121 @@
-import logging
+"""
+Lightweight deepfake detector using OpenCV heuristics only.
+No PyTorch, no transformers — builds in seconds on HF free tier.
 
+Approach: temporal consistency analysis + compression artifact detection.
+Deepfake videos often show:
+- Unnatural blending artifacts at face boundaries
+- Temporal inconsistency (frame-to-frame jitter in face regions)
+- High-frequency noise patterns from generation/compression
+"""
 import cv2
 import numpy as np
-from PIL import Image
-from facenet_pytorch import MTCNN
-from transformers import pipeline
-
-# dima806/deepfake_vs_real_image_detection is an EfficientNetB0 trained on a
-# face-focused deepfake dataset. Labels: "fake" / "real".
-MODEL_ID = "dima806/deepfake_vs_real_image_detection"
-N_FRAMES = 20
+import logging
 
 logger = logging.getLogger(__name__)
 
+# Haar cascade for face detection (built into OpenCV — zero download)
+FACE_CASCADE = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+FRAME_SAMPLES = 20
+
 
 class DeepfakeDetector:
-    def __init__(self) -> None:
-        logger.info("Initializing MTCNN...")
-        self.mtcnn = MTCNN(keep_all=False, post_process=False, select_largest=True)
-        logger.info("Initializing classifier (dima806/deepfake_vs_real_image_detection)...")
-        self.classifier = pipeline("image-classification", model=MODEL_ID, top_k=2)
+    def __init__(self):
+        logger.info("DeepfakeDetector initialized (OpenCV heuristics mode)")
 
-    def _extract_frames(self, video_path: str) -> list[np.ndarray]:
-        cap = cv2.VideoCapture(video_path)
-        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-
-        # Cap at 5 min of footage to keep inference time sane.
-        max_frames = min(total, int(fps * 300))
-        indices = np.linspace(0, max_frames - 1, N_FRAMES, dtype=int)
-
-        frames: list[np.ndarray] = []
-        for idx in indices:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, int(idx))
-            ret, frame = cap.read()
-            if ret:
-                frames.append(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-
-        cap.release()
-        return frames
-
-    def _crop_face(self, rgb_array: np.ndarray) -> Image.Image | None:
-        pil = Image.fromarray(rgb_array)
-        face_tensor = self.mtcnn(pil)
-        if face_tensor is None:
+    def _face_region(self, gray: np.ndarray):
+        """Return first detected face ROI or None."""
+        faces = FACE_CASCADE.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(60, 60))
+        if len(faces) == 0:
             return None
-        face_np = face_tensor.permute(1, 2, 0).cpu().numpy()
-        face_np = np.clip(face_np, 0, 255).astype(np.uint8)
-        return Image.fromarray(face_np)
+        x, y, w, h = faces[0]
+        return gray[y:y+h, x:x+w]
+
+    def _laplacian_score(self, roi: np.ndarray) -> float:
+        """High-frequency noise score via Laplacian variance. Deepfakes often have
+        unnatural smoothing/sharpening patterns around face regions."""
+        lap = cv2.Laplacian(roi, cv2.CV_64F)
+        return float(np.var(lap))
+
+    def _edge_density(self, roi: np.ndarray) -> float:
+        """Edge density in face region. Blended deepfakes have irregular edges."""
+        edges = cv2.Canny(roi, 50, 150)
+        return float(np.sum(edges > 0) / edges.size)
 
     def analyze(self, video_path: str) -> dict:
-        frames = self._extract_frames(video_path)
-        if not frames:
-            raise ValueError("No se pudieron extraer frames del video")
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise ValueError(f"Cannot open video: {video_path}")
 
-        logger.info("Extracted %d frames from video", len(frames))
+        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if total <= 0:
+            raise ValueError("No frames in video")
 
-        fake_scores: list[float] = []
+        indices = np.linspace(0, total - 1, min(FRAME_SAMPLES, total), dtype=int)
+        laplacians, edges, face_diffs = [], [], []
+        prev_face = None
         faces_found = 0
 
-        for frame in frames:
-            face_pil = self._crop_face(frame)
-            if face_pil is None:
+        for idx in indices:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, int(idx))
+            ok, frame = cap.read()
+            if not ok:
                 continue
 
-            faces_found += 1
-            results = self.classifier(face_pil)
-            for r in results:
-                if "fake" in r["label"].lower():
-                    fake_scores.append(float(r["score"]))
-                    break
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            face = self._face_region(gray)
 
-        logger.info("Faces detected across frames: %d", faces_found)
+            if face is not None:
+                faces_found += 1
+                face_resized = cv2.resize(face, (64, 64))
+                laplacians.append(self._laplacian_score(face_resized))
+                edges.append(self._edge_density(face_resized))
 
-        if not fake_scores:
-            return {
-                "verdict": "UNKNOWN",
-                "confidence": 0.0,
-                "faces_found": faces_found,
-                "frames_analyzed": len(frames),
-                "temporal_inconsistency": 0.0,
-                "detail": "No se detectaron rostros en ningún frame del video",
-            }
+                if prev_face is not None:
+                    diff = float(np.mean(np.abs(face_resized.astype(float) - prev_face.astype(float))))
+                    face_diffs.append(diff)
+                prev_face = face_resized
 
-        mean_score = float(np.mean(fake_scores))
-        std_score = float(np.std(fake_scores))
+        cap.release()
 
-        # High frame-to-frame variance is itself a deepfake signal — boost confidence slightly.
-        confidence = float(np.clip(mean_score + 0.15 * std_score, 0.0, 1.0))
-        verdict = "FAKE" if confidence > 0.5 else "REAL"
+        if not laplacians:
+            # No faces found — analyze full frame
+            cap = cv2.VideoCapture(video_path)
+            for idx in indices[:5]:
+                cap.set(cv2.CAP_PROP_POS_FRAMES, int(idx))
+                ok, frame = cap.read()
+                if ok:
+                    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    small = cv2.resize(gray, (128, 128))
+                    laplacians.append(self._laplacian_score(small))
+                    edges.append(self._edge_density(small))
+            cap.release()
+            if not laplacians:
+                raise ValueError("No frames could be analyzed")
+
+        # Scoring heuristics
+        avg_lap = float(np.mean(laplacians))
+        lap_std = float(np.std(laplacians)) if len(laplacians) > 1 else 0.0
+        avg_edge = float(np.mean(edges))
+        temporal_inconsistency = float(np.std(face_diffs)) if len(face_diffs) > 1 else 0.0
+
+        # Deepfakes tend to have: unusual edge density, high temporal inconsistency,
+        # and high Laplacian variance std (inconsistent sharpening across frames)
+        score = 0.0
+        score += min(temporal_inconsistency / 15.0, 0.4)   # up to 0.4
+        score += min(lap_std / 500.0, 0.3)                 # up to 0.3
+        score += min(abs(avg_edge - 0.08) / 0.1, 0.3)      # up to 0.3
+
+        confidence = min(score, 1.0)
+        verdict = "FAKE" if confidence >= 0.8 else "UNCERTAIN" if confidence >= 0.4 else "REAL"
+
+        logger.info("verdict=%s confidence=%.3f faces=%d frames=%d",
+                    verdict, confidence, faces_found, len(laplacians))
 
         return {
             "verdict": verdict,
-            "confidence": round(confidence, 4),
+            "confidence": round(confidence, 3),
             "faces_found": faces_found,
-            "frames_analyzed": len(frames),
-            "temporal_inconsistency": round(std_score, 4),
-            "per_frame_scores": [round(s, 4) for s in fake_scores],
-            "detail": f"{faces_found} rostros analizados en {len(frames)} frames",
+            "frames_analyzed": len(laplacians),
+            "temporal_inconsistency": round(temporal_inconsistency, 3),
         }

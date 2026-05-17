@@ -520,18 +520,25 @@ Mirrors the audio + image flow. Baileys downloads incoming videos and caches the
 
 ### How it works
 
-1. **MTCNN** (`facenet-pytorch`) extracts the largest face per sampled frame (20 frames evenly across the video, capped at 5 min of footage).
-2. Each face crop is scored by **`dima806/deepfake_vs_real_image_detection`** — an EfficientNetB0 fine-tuned on a face-focused deepfake dataset.
-3. Scores are aggregated across frames; the sidecar returns `{verdict, confidence, faces_found, frames_analyzed, temporal_inconsistency, detail}`.
-4. The Node tool (`src/agent/tools/analyze-video-deepfake.ts`) maps that to the three-tier shape (`real` / `uncertain` / `fake`) and renders a Spanish RESULTADO + Recomendación + Detalle técnico block, matching the audio/image verdict style.
+Lightweight OpenCV-only pipeline (no PyTorch, no model downloads):
+
+1. **OpenCV Haar cascade** detects the largest face per sampled frame (20 frames evenly across the video).
+2. For each face crop, three heuristics fire:
+   - **Laplacian variance** — high-frequency noise; deepfakes show inconsistent sharpening across frames.
+   - **Edge density (Canny)** — blended faces have irregular edge profiles.
+   - **Temporal inconsistency** — frame-to-frame jitter inside the face region.
+3. The sidecar combines these into a confidence score and classifies into three tiers itself: `REAL` (<0.4), `UNCERTAIN` (0.4–0.8), `FAKE` (≥0.8). Returns `{verdict, confidence, faces_found, frames_analyzed, temporal_inconsistency}`.
+4. The Node tool (`src/agent/tools/analyze-video-deepfake.ts`) trusts that verdict directly and renders a Spanish RESULTADO + Recomendación + Detalle técnico block, matching the audio/image verdict style.
+
+Trade-off: the OpenCV heuristics catch obvious manipulation (face-swap blending, frame jitter) but miss subtle high-quality deepfakes that a deep model would flag. Chosen for HF Spaces free-tier compatibility (<40s build, runs on cpu-basic).
 
 ### Setup — local Docker (recommended)
 
-The sidecar is in `docker-compose.yml` under the `ml` profile so it doesn't pull multi-GB ML deps for devs who don't need video:
+The sidecar is in `docker-compose.yml` under the `ml` profile so it stays out of the way for devs not working on video:
 
 ```bash
 docker compose --profile ml up -d deepfake
-# First build downloads ~500 MB of MTCNN + EfficientNetB0 weights — takes 5-10 min.
+# First build takes ~40s (no model weights to download).
 # Subsequent starts are seconds.
 curl http://localhost:7860/health    # {"status":"ok","model_loaded":true}
 ```
@@ -562,12 +569,14 @@ No local Docker needed in that case.
 | Sends video with caption like "¿es deepfake?" | Bot analyzes immediately (CASE 2 implicit consent) |
 | Sends video + caption "@bot ¿es real?" in a group | Same as above; the mention extractor handles caption-mentions |
 
-### Models used
+### Techniques used
 
-| Model | Role |
+| Technique | Role |
 |---|---|
-| [MTCNN](https://github.com/timesler/facenet-pytorch) | Face detection — extracts the largest face per sampled frame |
-| [`dima806/deepfake_vs_real_image_detection`](https://huggingface.co/dima806/deepfake_vs_real_image_detection) | EfficientNetB0 deepfake classifier |
+| OpenCV Haar cascade (`haarcascade_frontalface_default.xml`) | Face detection — built into OpenCV, zero download |
+| Laplacian variance | High-frequency noise consistency across frames |
+| Canny edge density | Blending-artifact detection at face boundaries |
+| Frame-to-frame face diff | Temporal jitter inside the face region |
 
 ---
 

@@ -12,14 +12,13 @@ const SERVICE_URL = (): string =>
 
 type Tier = 'real' | 'uncertain' | 'fake';
 
-// Translate the Python service's binary verdict ("FAKE"/"REAL" + 0-1 confidence)
-// into the three-tier shape audio/image use, so the user-facing language stays
-// consistent across media types.
-const FAKE_THRESHOLD = 0.7;
-const UNCERTAIN_THRESHOLD = 0.4;
-function tierFromConfidence(verdict: string, confidence: number): Tier {
-  if (verdict === 'FAKE' && confidence >= FAKE_THRESHOLD) return 'fake';
-  if (verdict === 'FAKE' && confidence >= UNCERTAIN_THRESHOLD) return 'uncertain';
+// The Python service already classifies into REAL/UNCERTAIN/FAKE internally
+// (its own confidence thresholds at 0.4 and 0.8). Trust that classification
+// — re-thresholding here would double-count and risk mismatch if the service
+// retunes. The confidence number stays for display.
+function tierFromVerdict(verdict: string): Tier {
+  if (verdict === 'FAKE') return 'fake';
+  if (verdict === 'UNCERTAIN') return 'uncertain';
   return 'real';
 }
 
@@ -29,7 +28,9 @@ type ServiceResponse = {
   faces_found: number;
   frames_analyzed: number;
   temporal_inconsistency: number;
-  detail: string;
+  // Optional — heavier detectors may include a human-readable detail string;
+  // the lightweight OpenCV-based detector currently omits it.
+  detail?: string;
 };
 
 export const analyzeVideoDeepfakeTool = tool(
@@ -91,7 +92,7 @@ export const analyzeVideoDeepfakeTool = tool(
       unlink(pending.filePath).catch(() => {});
     }
 
-    const tier = tierFromConfidence(data.verdict, data.confidence);
+    const tier = tierFromVerdict(data.verdict);
     const pct = Math.round(data.confidence * 100);
     const inc = Math.round(data.temporal_inconsistency * 100);
     log.info(

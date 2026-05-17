@@ -53,14 +53,13 @@ describe('analyzeVideoDeepfakeTool', () => {
     vi.mocked(getProgressSender).mockReturnValue(null);
   });
 
-  it('returns a fake-tier verdict when service reports high-confidence FAKE', async () => {
+  it('returns a fake-tier verdict when service reports FAKE', async () => {
     mockServiceResponse({
       verdict: 'FAKE',
       confidence: 0.87,
       faces_found: 16,
       frames_analyzed: 20,
       temporal_inconsistency: 0.14,
-      detail: '16 rostros analizados en 20 frames',
     });
 
     const result = await analyzeVideoDeepfakeTool.invoke({});
@@ -71,14 +70,13 @@ describe('analyzeVideoDeepfakeTool', () => {
     expect(result).toContain('FAKE');
   });
 
-  it('returns an uncertain-tier verdict when FAKE confidence is mid-range', async () => {
+  it('returns an uncertain-tier verdict when service reports UNCERTAIN', async () => {
     mockServiceResponse({
-      verdict: 'FAKE',
+      verdict: 'UNCERTAIN',
       confidence: 0.55,
       faces_found: 12,
       frames_analyzed: 20,
       temporal_inconsistency: 0.08,
-      detail: 'parcialmente inconsistente',
     });
 
     const result = await analyzeVideoDeepfakeTool.invoke({});
@@ -95,7 +93,6 @@ describe('analyzeVideoDeepfakeTool', () => {
       faces_found: 18,
       frames_analyzed: 20,
       temporal_inconsistency: 0.03,
-      detail: '18 rostros analizados',
     });
 
     const result = await analyzeVideoDeepfakeTool.invoke({});

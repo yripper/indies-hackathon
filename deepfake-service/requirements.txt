@@ -1,13 +1,6 @@
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 opencv-python-headless==4.10.0.84
-facenet-pytorch==2.6.0
-# CPU-only torch: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-torch>=2.0.0
-torchvision>=0.15.0
-transformers==4.44.2
-# facenet-pytorch 2.6.0 pins Pillow<10.3 — let pip pick anything in that
-# window rather than hard-pinning a single patch.
-Pillow>=10.2.0,<10.3.0
+Pillow==10.4.0
 python-multipart==0.0.9
 numpy>=1.24.0
