@@ -12,5 +12,10 @@ export function createSender(sessionManager: SessionManager) {
     async send(to: string, text: string): Promise<void> {
       await sessionManager.sendMessage(toJid(to), text);
     },
+    async sendImage(to: string, imageBuffer: Buffer, caption?: string): Promise<void> {
+      await sessionManager.sendImage(toJid(to), imageBuffer, caption);
+    },
   };
 }
+
+export type Sender = ReturnType<typeof createSender>;

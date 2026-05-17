@@ -166,3 +166,109 @@ export const imageAnalyses = pgTable(
     index('image_analyses_tier_idx').on(table.tier, table.createdAt),
   ],
 );
+
+export const publicCases = pgTable(
+  'public_cases',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    caseHash: text('case_hash').notNull().unique(),
+    mediaType: text('media_type').notNull(),
+    tier: text('tier').notNull(),
+    score: real('score').notNull(),
+    summary: text('summary').notNull(),
+    sources: jsonb('sources').notNull().default([]),
+    keywords: jsonb('keywords').notNull().default([]),
+    latitude: real('latitude'),
+    longitude: real('longitude'),
+    country: text('country'),
+    region: text('region'),
+    thumbnailUrl: text('thumbnail_url'),
+    externalUrl: text('external_url'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('public_cases_tier_idx').on(table.tier, table.createdAt),
+    index('public_cases_country_idx').on(table.country, table.createdAt),
+  ],
+);
+
+export const subscriptions = pgTable(
+  'subscriptions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    email: text('email').notNull().unique(),
+    topics: jsonb('topics').notNull().default([]),
+    frequency: text('frequency').notNull().default('daily'),
+    confirmed: boolean('confirmed').notNull().default(false),
+    confirmationToken: text('confirmation_token'),
+    subscribedAt: timestamp('subscribed_at').defaultNow().notNull(),
+    unsubscribedAt: timestamp('unsubscribed_at'),
+  },
+  (table) => [
+    index('subscriptions_email_idx').on(table.email),
+    index('subscriptions_confirmed_idx').on(table.confirmed),
+  ],
+);
+
+export const sourceTraces = pgTable(
+  'source_traces',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    caseId: uuid('case_id').references(() => publicCases.id, { onDelete: 'cascade' }),
+    originalUrl: text('original_url'),
+    firstSeenAt: timestamp('first_seen_at'),
+    lastSeenAt: timestamp('last_seen_at'),
+    metadata: jsonb('metadata').default({}),
+    reverseImageMatches: jsonb('reverse_image_matches').default([]),
+    exifData: jsonb('exif_data').default({}),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('source_traces_case_idx').on(table.caseId),
+    index('source_traces_url_idx').on(table.originalUrl),
+  ],
+);
+
+export const darkwebCampaigns = pgTable(
+  'darkweb_campaigns',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    campaignHash: text('campaign_hash').notNull().unique(),
+    source: text('source').notNull(),
+    sourceUrl: text('source_url'),
+    title: text('title').notNull(),
+    content: text('content').notNull(),
+    topics: jsonb('topics').notNull().default([]),
+    confidence: real('confidence').notNull(),
+    country: text('country'),
+    latitude: real('latitude'),
+    longitude: real('longitude'),
+    detectedAt: timestamp('detected_at').defaultNow().notNull(),
+    publishedAt: timestamp('published_at'),
+  },
+  (table) => [
+    index('darkweb_campaigns_topics_idx').on(table.topics),
+    index('darkweb_campaigns_country_idx').on(table.country, table.detectedAt),
+    index('darkweb_campaigns_detected_idx').on(table.detectedAt),
+  ],
+);
+
+export const imageComparisons = pgTable(
+  'image_comparisons',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    originalHash: text('original_hash').notNull(),
+    modifiedHash: text('modified_hash').notNull(),
+    originalUrl: text('original_url'),
+    modifiedUrl: text('modified_url'),
+    diffImageUrl: text('diff_image_url'),
+    similarityScore: real('similarity_score').notNull(),
+    alteredRegions: jsonb('altered_regions').default([]),
+    metadata: jsonb('metadata').default({}),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('image_comparisons_original_idx').on(table.originalHash),
+    index('image_comparisons_modified_idx').on(table.modifiedHash),
+  ],
+);

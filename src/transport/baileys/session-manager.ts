@@ -1,7 +1,5 @@
 import makeWASocket, {
   DisconnectReason,
-  downloadMediaMessage,
-  type WAMessage,
   type WASocket,
   type BaileysEventMap,
 } from '@whiskeysockets/baileys';
@@ -46,19 +44,6 @@ export class SessionManager {
     return this.socket !== null;
   }
 
-  // Bot's own JIDs (phone-number form and @lid form). Both are needed to detect
-  // mentions in groups — Baileys 7 may use either depending on privacy mode.
-  getOwnJids(): { phoneJid: string | null; lidJid: string | null } {
-    const user = this.socket?.user;
-    if (!user) return { phoneJid: null, lidJid: null };
-    const phone = user.id?.split(':')[0]?.split('@')[0] ?? null;
-    const lid = user.lid ? user.lid.split(':')[0]?.split('@')[0] ?? null : null;
-    return {
-      phoneJid: phone ? `${phone}@s.whatsapp.net` : null,
-      lidJid: lid ? `${lid}@lid` : null,
-    };
-  }
-
   async createSession(config: SessionConfig): Promise<void> {
     // Guard against duplicate-socket races (e.g. double connection.close events triggering
     // multiple reconnect timers). Closing first ensures we never have two live sockets.
@@ -83,19 +68,12 @@ export class SessionManager {
     await this.socket.sendMessage(to, { text });
   }
 
-  // Downloads + decrypts a media message (audio/image/video). For expired WA-CDN
-  // URLs Baileys auto-retries via the bound updateMediaMessage callback.
-  async downloadMedia(msg: WAMessage): Promise<Buffer> {
+  async sendImage(to: string, imageBuffer: Buffer, caption?: string): Promise<void> {
     if (!this.socket) throw new Error('No active WhatsApp session');
-    return await downloadMediaMessage(
-      msg,
-      'buffer',
-      {},
-      {
-        logger: noopLogger as never,
-        reuploadRequest: this.socket.updateMediaMessage.bind(this.socket),
-      },
-    );
+    await this.socket.sendMessage(to, {
+      image: imageBuffer,
+      caption: caption ?? '',
+    });
   }
 
   close(): void {

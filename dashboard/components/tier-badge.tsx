@@ -1,10 +1,9 @@
 import type { Tier } from "@/lib/api";
 
 const STYLES: Record<Tier, string> = {
-  real: "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-400/30",
-  uncertain:
-    "bg-amber-50 text-amber-800 ring-amber-600/20 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-400/30",
-  fake: "bg-rose-50 text-rose-700 ring-rose-600/20 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-400/30",
+  real: "bg-emerald-500/10 text-[#34d399] ring-emerald-500/20",
+  uncertain: "bg-amber-500/10 text-[#fbbf24] ring-amber-500/20",
+  fake: "bg-rose-500/10 text-[#ef4444] ring-rose-500/20",
 };
 
 const LABELS: Record<Tier, string> = {
