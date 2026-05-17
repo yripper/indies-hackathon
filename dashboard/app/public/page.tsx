@@ -1,7 +1,7 @@
+'use client';
+
 import Link from 'next/link';
 import { GlobeWrapper } from '@/components/globe-client';
-
-export const dynamic = 'force-dynamic';
 
 const MOCK_CASES = [
   { id: '1', tier: 'fake', country: 'México', summary: 'Video manipulado de candidato político mostrando declaraciones falsas', keywords: ['política', 'deepfake', 'elecciones'], score: 0.92, created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },

@@ -3,581 +3,1298 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Veritas — Anti-desinformación para WhatsApp</title>
+  <title>Veritas — Detecta deepfakes en WhatsApp</title>
+  <meta name="description" content="Plataforma anti-desinformación para WhatsApp. Detecta deepfakes de audio, imagen y video en segundos." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --green: #22c55e;
-      --green-dark: #16a34a;
+      --emerald: #10b981;
+      --emerald-bright: #34d399;
+      --emerald-dim: #065f46;
       --red: #ef4444;
-      --gray-900: #0f0f0f;
-      --gray-800: #1a1a1a;
-      --gray-700: #262626;
-      --gray-400: #a3a3a3;
-      --gray-200: #e5e5e5;
-      --white: #ffffff;
+      --red-dim: #7f1d1d;
+      --bg: #030712;
+      --bg-elevated: #0a0f1a;
+      --bg-card: #111827;
+      --border: #1f2937;
+      --border-subtle: #111827;
+      --text: #f9fafb;
+      --text-secondary: #9ca3af;
+      --text-dim: #6b7280;
+      --gradient-emerald: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      --gradient-glow: radial-gradient(ellipse at 50% 0%, rgba(16, 185, 129, 0.12) 0%, transparent 60%);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html { scroll-behavior: smooth; }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--gray-900);
-      color: var(--white);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
       line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* NAV */
+    /* ═══════════════════════════════════════
+       ANIMATIONS
+    ═══════════════════════════════════════ */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideInLeft {
+      from { opacity: 0; transform: translateX(-40px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes slideInRight {
+      from { opacity: 0; transform: translateX(40px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    @keyframes typing {
+      0% { width: 0; }
+      100% { width: 100%; }
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    @keyframes scanLine {
+      0% { top: 0%; }
+      100% { top: 100%; }
+    }
+
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(30px);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+    .reveal-delay-4 { transition-delay: 0.4s; }
+
+    /* ═══════════════════════════════════════
+       NAVIGATION
+    ═══════════════════════════════════════ */
     nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      padding: 1rem 2rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 1.25rem 2rem;
-      border-bottom: 1px solid var(--gray-700);
-      position: sticky;
-      top: 0;
-      background: rgba(15,15,15,0.92);
-      backdrop-filter: blur(8px);
-      z-index: 100;
+      background: rgba(3, 7, 18, 0.8);
+      backdrop-filter: blur(20px) saturate(180%);
+      border-bottom: 1px solid var(--border-subtle);
+      transition: background 0.3s;
     }
 
-    .logo {
-      font-size: 1.25rem;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      color: var(--green);
-    }
-
-    nav a {
-      color: var(--gray-400);
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
       text-decoration: none;
-      font-size: 0.9rem;
+    }
+
+    .nav-logo-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--gradient-emerald);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 0.85rem;
+      color: var(--bg);
+    }
+
+    .nav-logo-text {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: 0.1em;
+      color: var(--text);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 2.5rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
       transition: color 0.2s;
     }
 
-    nav a:hover { color: var(--white); }
-    nav ul { display: flex; gap: 2rem; list-style: none; }
+    .nav-links a:hover { color: var(--text); }
 
-    /* HERO */
-    .hero {
-      text-align: center;
-      padding: 6rem 2rem 4rem;
-      max-width: 860px;
-      margin: 0 auto;
+    .nav-cta {
+      padding: 0.5rem 1.25rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text) !important;
+      font-weight: 600 !important;
+      transition: border-color 0.2s, background 0.2s !important;
     }
 
-    .badge {
-      display: inline-block;
-      background: var(--gray-800);
-      border: 1px solid var(--gray-700);
-      border-radius: 999px;
-      padding: 0.25rem 0.85rem;
-      font-size: 0.78rem;
-      color: var(--green);
+    .nav-cta:hover {
+      border-color: var(--emerald) !important;
+      background: var(--bg-elevated) !important;
+    }
+
+    /* ═══════════════════════════════════════
+       HERO
+    ═══════════════════════════════════════ */
+    .hero {
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8rem 2rem 6rem;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 120%;
+      height: 100%;
+      background: radial-gradient(ellipse at center, rgba(16, 185, 129, 0.08) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .hero-grid-bg {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(31, 41, 55, 0.3) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(31, 41, 55, 0.3) 1px, transparent 1px);
+      background-size: 60px 60px;
+      mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+    }
+
+    .hero-content {
+      position: relative;
+      text-align: center;
+      max-width: 900px;
+      animation: fadeUp 1s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.4rem 1rem;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      border-radius: 100px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--emerald-bright);
       letter-spacing: 0.05em;
+      margin-bottom: 2rem;
+    }
+
+    .hero-badge::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--emerald);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    .hero h1 {
+      font-size: clamp(3rem, 8vw, 5.5rem);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
       margin-bottom: 1.5rem;
     }
 
-    h1 {
-      font-size: clamp(2.5rem, 6vw, 4rem);
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      line-height: 1.1;
-      margin-bottom: 1.25rem;
+    .hero h1 .gradient-text {
+      background: linear-gradient(135deg, var(--emerald-bright) 0%, var(--emerald) 50%, #059669 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      animation: gradientShift 4s ease infinite;
     }
 
-    h1 span { color: var(--green); }
-
-    .hero p {
-      font-size: 1.15rem;
-      color: var(--gray-400);
-      max-width: 580px;
-      margin: 0 auto 2.5rem;
+    .hero-subtitle {
+      font-size: clamp(1.1rem, 2vw, 1.35rem);
+      color: var(--text-secondary);
+      max-width: 600px;
+      margin: 0 auto 3rem;
+      line-height: 1.7;
     }
 
-    .cta-group {
+    .hero-actions {
       display: flex;
-      gap: 1rem;
+      align-items: center;
       justify-content: center;
+      gap: 1rem;
       flex-wrap: wrap;
     }
 
     .btn {
-      display: inline-block;
-      padding: 0.75rem 1.75rem;
-      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.875rem 2rem;
+      border-radius: 12px;
       font-weight: 600;
       font-size: 0.95rem;
       text-decoration: none;
-      transition: opacity 0.2s, transform 0.15s;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+      border: none;
     }
-
-    .btn:hover { opacity: 0.88; transform: translateY(-1px); }
 
     .btn-primary {
-      background: var(--green);
-      color: var(--gray-900);
+      background: var(--gradient-emerald);
+      color: var(--bg);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255,255,255,0.2);
     }
 
-    .btn-secondary {
-      background: var(--gray-800);
-      color: var(--white);
-      border: 1px solid var(--gray-700);
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 40px rgba(16, 185, 129, 0.4), inset 0 1px 0 rgba(255,255,255,0.2);
     }
 
-    /* SECTION COMMON */
-    section {
-      padding: 5rem 2rem;
-      max-width: 1100px;
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+
+    .btn-ghost:hover {
+      color: var(--text);
+      border-color: var(--text-dim);
+      transform: translateY(-2px);
+    }
+
+    /* ═══════════════════════════════════════
+       STATS BAR
+    ═══════════════════════════════════════ */
+    .stats-bar {
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 3rem 2rem;
+      background: var(--bg-elevated);
+    }
+
+    .stats-grid {
+      max-width: 1000px;
       margin: 0 auto;
-    }
-
-    .section-label {
-      font-size: 0.78rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--green);
-      margin-bottom: 0.75rem;
-    }
-
-    h2 {
-      font-size: clamp(1.75rem, 3.5vw, 2.25rem);
-      font-weight: 700;
-      margin-bottom: 1rem;
-    }
-
-    .subtitle {
-      color: var(--gray-400);
-      max-width: 520px;
-      margin-bottom: 3rem;
-    }
-
-    /* HOW IT WORKS */
-    .steps {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      grid-template-columns: repeat(4, 1fr);
       gap: 2rem;
     }
 
-    .step {
-      background: var(--gray-800);
-      border: 1px solid var(--gray-700);
-      border-radius: 12px;
-      padding: 1.75rem;
+    .stat-item {
+      text-align: center;
     }
 
-    .step-num {
-      width: 2rem;
-      height: 2rem;
-      background: var(--green);
-      color: var(--gray-900);
+    .stat-number {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-number .accent { color: var(--emerald); }
+
+    .stat-label {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 500;
+    }
+
+    /* ═══════════════════════════════════════
+       PHONE MOCKUP / DEMO
+    ═══════════════════════════════════════ */
+    .demo-section {
+      padding: 8rem 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .demo-header {
+      max-width: 600px;
+      margin-bottom: 4rem;
+    }
+
+    .section-eyebrow {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--emerald);
+      margin-bottom: 1rem;
+    }
+
+    .demo-header h2 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin-bottom: 1rem;
+    }
+
+    .demo-header p {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    .demo-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+      align-items: center;
+    }
+
+    /* Phone frame */
+    .phone-frame {
+      width: 300px;
+      margin: 0 auto;
+      background: #1a1a2e;
+      border-radius: 40px;
+      padding: 12px;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.1),
+        0 25px 50px rgba(0,0,0,0.5),
+        0 0 100px rgba(16, 185, 129, 0.05);
+      animation: float 6s ease-in-out infinite;
+    }
+
+    .phone-screen {
+      background: #0b1426;
+      border-radius: 30px;
+      overflow: hidden;
+      padding: 0;
+    }
+
+    .phone-header {
+      background: #075e54;
+      padding: 1rem 1rem 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .phone-header-avatar {
+      width: 36px;
+      height: 36px;
+      background: var(--gradient-emerald);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
+      font-weight: 800;
+      font-size: 0.75rem;
+      color: white;
+    }
+
+    .phone-header-info {
+      flex: 1;
+    }
+
+    .phone-header-name {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: white;
+    }
+
+    .phone-header-status {
+      font-size: 0.7rem;
+      color: rgba(255,255,255,0.7);
+    }
+
+    .phone-chat {
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      min-height: 380px;
+    }
+
+    .chat-bubble {
+      max-width: 85%;
+      padding: 0.6rem 0.85rem;
+      border-radius: 12px;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      position: relative;
+    }
+
+    .chat-bubble.sent {
+      align-self: flex-end;
+      background: #005c4b;
+      color: #e2f5e9;
+      border-bottom-right-radius: 4px;
+    }
+
+    .chat-bubble.received {
+      align-self: flex-start;
+      background: #1f2c34;
+      color: #e9edef;
+      border-bottom-left-radius: 4px;
+    }
+
+    .chat-bubble.verdict-real {
+      align-self: flex-start;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--emerald-bright);
+      border-bottom-left-radius: 4px;
+    }
+
+    .chat-bubble.verdict-fake {
+      align-self: flex-start;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #fca5a5;
+      border-bottom-left-radius: 4px;
+    }
+
+    .chat-time {
+      font-size: 0.6rem;
+      opacity: 0.6;
+      text-align: right;
+      margin-top: 0.25rem;
+    }
+
+    /* Flow description */
+    .flow-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 2.5rem;
+    }
+
+    .flow-step {
+      display: flex;
+      gap: 1.25rem;
+      align-items: flex-start;
+    }
+
+    .flow-step-indicator {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+
+    .flow-step-num {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
       font-weight: 700;
+      color: var(--emerald);
+      flex-shrink: 0;
+    }
+
+    .flow-step-line {
+      width: 1px;
+      flex: 1;
+      min-height: 30px;
+      background: linear-gradient(to bottom, var(--border), transparent);
+      margin-top: 0.5rem;
+    }
+
+    .flow-step-content h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: 0.35rem;
+    }
+
+    .flow-step-content p {
       font-size: 0.9rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* ═══════════════════════════════════════
+       CAPABILITIES
+    ═══════════════════════════════════════ */
+    .capabilities-section {
+      padding: 8rem 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .capabilities-header {
+      text-align: center;
+      max-width: 700px;
+      margin: 0 auto 5rem;
+    }
+
+    .capabilities-header h2 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
       margin-bottom: 1rem;
     }
 
-    .step h3 { font-size: 1rem; margin-bottom: 0.5rem; }
-    .step p { color: var(--gray-400); font-size: 0.9rem; }
+    .capabilities-header p {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+    }
 
-    /* FEATURES GRID */
-    .features-grid {
+    .capabilities-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 1.25rem;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
     }
 
-    .feature-card {
-      background: var(--gray-800);
-      border: 1px solid var(--gray-700);
+    .capability-card {
+      background: var(--bg);
+      padding: 2.5rem 2rem;
+      transition: background 0.3s;
+      position: relative;
+    }
+
+    .capability-card:hover {
+      background: var(--bg-elevated);
+    }
+
+    .capability-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--emerald), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .capability-card:hover::before { opacity: 0.5; }
+
+    .capability-icon {
+      width: 44px;
+      height: 44px;
       border-radius: 12px;
-      padding: 1.5rem;
-      transition: border-color 0.2s;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.25rem;
+      font-size: 1.2rem;
     }
 
-    .feature-card:hover { border-color: var(--green-dark); }
-
-    .feature-icon {
-      font-size: 1.6rem;
-      margin-bottom: 0.75rem;
+    .capability-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
     }
 
-    .feature-card h3 {
-      font-size: 0.95rem;
-      font-weight: 600;
-      margin-bottom: 0.4rem;
-    }
-
-    .feature-card p {
-      color: var(--gray-400);
+    .capability-card p {
       font-size: 0.85rem;
-      line-height: 1.5;
+      color: var(--text-dim);
+      line-height: 1.6;
     }
 
-    /* DETECTION PIPELINE */
-    .pipeline {
-      background: var(--gray-800);
-      border: 1px solid var(--gray-700);
-      border-radius: 12px;
-      padding: 2rem;
-      font-family: 'SF Mono', 'Fira Mono', 'Courier New', monospace;
-      font-size: 0.85rem;
-      line-height: 1.8;
-      color: var(--gray-200);
+    /* ═══════════════════════════════════════
+       ARCHITECTURE
+    ═══════════════════════════════════════ */
+    .arch-section {
+      padding: 8rem 2rem;
+      border-top: 1px solid var(--border);
+      background: var(--bg-elevated);
+    }
+
+    .arch-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .arch-header {
+      max-width: 600px;
+      margin-bottom: 4rem;
+    }
+
+    .arch-header h2 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 1rem;
+    }
+
+    .arch-header p {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+    }
+
+    .arch-diagram {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 2.5rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      line-height: 2;
       overflow-x: auto;
-      white-space: pre;
+      position: relative;
     }
 
-    .pipeline .green { color: var(--green); }
-    .pipeline .dim { color: var(--gray-400); }
+    .arch-diagram::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--emerald), transparent);
+      opacity: 0.3;
+    }
 
-    /* TECH STACK */
-    .stack-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    .arch-diagram .keyword { color: var(--emerald-bright); font-weight: 700; }
+    .arch-diagram .comment { color: var(--text-dim); }
+    .arch-diagram .type { color: #93c5fd; }
+    .arch-diagram .string { color: #fbbf24; }
+
+    /* Stack pills */
+    .stack-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 3rem;
+    }
+
+    .stack-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .stack-pill:hover {
+      border-color: var(--emerald-dim);
+      color: var(--text);
+    }
+
+    .stack-pill-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--emerald);
+    }
+
+    /* ═══════════════════════════════════════
+       CTA SECTION
+    ═══════════════════════════════════════ */
+    .cta-section {
+      padding: 10rem 2rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-section::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 100%, rgba(16, 185, 129, 0.08) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    .cta-content {
+      position: relative;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .cta-content h2 {
+      font-size: clamp(2.5rem, 5vw, 4rem);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      margin-bottom: 1.25rem;
+    }
+
+    .cta-content p {
+      font-size: 1.15rem;
+      color: var(--text-secondary);
+      margin-bottom: 3rem;
+      line-height: 1.7;
+    }
+
+    .cta-qr-area {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+    }
+
+    .qr-placeholder {
+      width: 180px;
+      height: 180px;
+      background: white;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      box-shadow: 0 0 60px rgba(16, 185, 129, 0.15);
+    }
+
+    .qr-placeholder-inner {
+      width: 150px;
+      height: 150px;
+      background:
+        repeating-conic-gradient(#1a1a2e 0% 25%, transparent 0% 50%) 0 0 / 15px 15px,
+        repeating-conic-gradient(#1a1a2e 0% 25%, transparent 0% 50%) 7.5px 7.5px / 15px 15px;
+      border-radius: 8px;
+      opacity: 0.7;
+    }
+
+    .qr-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      letter-spacing: 0.05em;
+    }
+
+    /* ═══════════════════════════════════════
+       FOOTER
+    ═══════════════════════════════════════ */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 3rem 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .footer-left {
+      display: flex;
+      align-items: center;
       gap: 1rem;
     }
 
-    .stack-item {
-      background: var(--gray-800);
-      border: 1px solid var(--gray-700);
-      border-radius: 8px;
-      padding: 1rem;
-      text-align: center;
-    }
-
-    .stack-item .layer {
-      font-size: 0.7rem;
-      color: var(--green);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 0.3rem;
-    }
-
-    .stack-item .tech {
+    .footer-logo {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
       font-size: 0.9rem;
-      font-weight: 600;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
     }
 
-    /* VERDICT DEMO */
-    .verdict-demo {
-      background: var(--gray-800);
-      border: 1px solid var(--gray-700);
-      border-radius: 12px;
-      padding: 1.5rem;
-      max-width: 480px;
+    .footer-sep {
+      width: 1px;
+      height: 16px;
+      background: var(--border);
     }
 
-    .verdict-demo .msg {
-      background: var(--gray-700);
-      border-radius: 8px;
-      padding: 0.75rem 1rem;
-      font-size: 0.88rem;
-      margin-bottom: 0.75rem;
-      color: var(--gray-200);
-    }
-
-    .verdict-demo .reply {
-      background: #14532d;
-      border: 1px solid #166534;
-      border-radius: 8px;
-      padding: 0.75rem 1rem;
-      font-size: 0.88rem;
-      color: #86efac;
-    }
-
-    .verdict-demo .reply.warn {
-      background: #7f1d1d;
-      border-color: #991b1b;
-      color: #fca5a5;
-    }
-
-    /* CTA SECTION */
-    .cta-section {
-      text-align: center;
-      background: var(--gray-800);
-      border-top: 1px solid var(--gray-700);
-      border-bottom: 1px solid var(--gray-700);
-      padding: 5rem 2rem;
-    }
-
-    .cta-section h2 { margin-bottom: 1rem; }
-    .cta-section p { color: var(--gray-400); margin-bottom: 2rem; }
-
-    /* FOOTER */
-    footer {
-      text-align: center;
-      padding: 2rem;
-      color: var(--gray-400);
+    .footer-text {
       font-size: 0.85rem;
-      border-top: 1px solid var(--gray-700);
+      color: var(--text-dim);
     }
 
-    /* DIVIDER */
-    hr {
-      border: none;
-      border-top: 1px solid var(--gray-700);
+    .footer-links {
+      display: flex;
+      gap: 1.5rem;
     }
 
-    /* RESPONSIVE */
-    @media (max-width: 600px) {
-      nav ul { display: none; }
+    .footer-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover { color: var(--emerald); }
+
+    /* ═══════════════════════════════════════
+       RESPONSIVE
+    ═══════════════════════════════════════ */
+    @media (max-width: 1024px) {
+      .capabilities-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      nav { padding: 1rem 1.5rem; }
+      .nav-links { display: none; }
+
+      .hero { padding: 7rem 1.5rem 4rem; min-height: auto; }
+      .hero h1 { font-size: clamp(2.5rem, 10vw, 3.5rem); }
+
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+      }
+
+      .demo-layout {
+        grid-template-columns: 1fr;
+        gap: 3rem;
+      }
+
+      .phone-frame { width: 280px; order: -1; }
+
+      .capabilities-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .capability-card { padding: 2rem 1.5rem; }
+
+      .arch-diagram {
+        padding: 1.5rem;
+        font-size: 0.7rem;
+      }
+
+      .cta-section { padding: 6rem 1.5rem; }
+
+      footer {
+        flex-direction: column;
+        gap: 1.5rem;
+        text-align: center;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .stats-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .stack-row { justify-content: center; }
     }
   </style>
 </head>
 <body>
 
-  <!-- NAV -->
+  <!-- ═══════════════ NAV ═══════════════ -->
   <nav>
-    <span class="logo">⚔ VERITAS</span>
-    <ul>
-      <li><a href="#como-funciona">Cómo funciona</a></li>
-      <li><a href="#funcionalidades">Funcionalidades</a></li>
-      <li><a href="#tecnologia">Tecnología</a></li>
-      <li><a href="https://github.com/yripper/indies-hackathon" target="_blank">GitHub</a></li>
+    <a href="#" class="nav-logo">
+      <div class="nav-logo-icon">V</div>
+      <span class="nav-logo-text">VERITAS</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#demo">Demo</a></li>
+      <li><a href="#capacidades">Capacidades</a></li>
+      <li><a href="#arquitectura">Arquitectura</a></li>
+      <li><a href="https://github.com/yripper/indies-hackathon" target="_blank" class="nav-cta">GitHub</a></li>
     </ul>
   </nav>
 
-  <!-- HERO -->
+  <!-- ═══════════════ HERO ═══════════════ -->
   <section class="hero">
-    <span class="badge">hack@latam 2026</span>
-    <h1>Combate la <span>desinformación</span><br>en WhatsApp</h1>
-    <p>
-      Veritas detecta deepfakes en audio, imagen y video, verifica noticias en tiempo real
-      y protege grupos automáticamente — todo desde tu WhatsApp habitual.
-    </p>
-    <div class="cta-group">
-      <a href="https://github.com/yripper/indies-hackathon" class="btn btn-primary" target="_blank">Ver código</a>
-      <a href="https://dr4k3n-deepfake-detector.hf.space" class="btn btn-secondary" target="_blank">Demo en vivo</a>
-    </div>
-  </section>
-
-  <hr />
-
-  <!-- COMO FUNCIONA -->
-  <section id="como-funciona">
-    <div class="section-label">Proceso</div>
-    <h2>Tres pasos, menos de 10 segundos</h2>
-    <p class="subtitle">No hace falta instalar nada nuevo. Si tienes WhatsApp, ya tienes Veritas.</p>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <h3>Envía el contenido</h3>
-        <p>Manda un audio, imagen, video, enlace de YouTube/TikTok o un texto con una noticia sospechosa.</p>
-      </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <h3>Veritas analiza</h3>
-        <p>El agente enruta el contenido por los detectores adecuados: Reality Defender, Sightengine, modelos de ML propios y buscadores de fact-checking.</p>
-      </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <h3>Recibes el veredicto</h3>
-        <p>Obtienes un resultado en lenguaje natural, score de confianza, heatmap de frames (video) o certificado de autenticidad (contenido real).</p>
+    <div class="hero-grid-bg"></div>
+    <div class="hero-content">
+      <div class="hero-badge">hack@latam 2026</div>
+      <h1>
+        La verdad no se<br>
+        <span class="gradient-text">negocia.</span>
+      </h1>
+      <p class="hero-subtitle">
+        Detecta deepfakes de audio, imagen y video en WhatsApp.
+        Verifica noticias en tiempo real. Protege a tu comunidad.
+      </p>
+      <div class="hero-actions">
+        <a href="#cta" class="btn btn-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+          Probar en WhatsApp
+        </a>
+        <a href="https://github.com/yripper/indies-hackathon" target="_blank" class="btn btn-ghost">
+          Ver el código
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 17l9.2-9.2M17 17V8H8"/></svg>
+        </a>
       </div>
     </div>
   </section>
 
-  <!-- EJEMPLO DE VEREDICTO -->
-  <section style="padding-top:0">
-    <div class="verdict-demo">
-      <div class="msg">📹 <em>[Video adjunto — 18 s]</em></div>
-      <div class="reply">
-        ✅ <strong>Veredicto: AUTÉNTICO</strong><br>
-        Confianza: 94 % · 24 frames analizados<br>
-        Ningún indicador de manipulación detectado.<br>
-        Certificado SHA-256 generado.
+  <!-- ═══════════════ STATS ═══════════════ -->
+  <div class="stats-bar">
+    <div class="stats-grid">
+      <div class="stat-item reveal">
+        <div class="stat-number">&lt;<span class="accent" data-count="10">0</span>s</div>
+        <div class="stat-label">Tiempo de respuesta</div>
       </div>
-    </div>
-    &nbsp;
-    <div class="verdict-demo" style="margin-top:1rem">
-      <div class="msg">🔊 <em>[Nota de voz — 42 s]</em></div>
-      <div class="reply warn">
-        ⚠️ <strong>Veredicto: POSIBLE DEEPFAKE</strong><br>
-        Confianza: 87 % · Reality Defender SDK<br>
-        Patrones de síntesis de voz detectados.<br>
-        Se recomienda no compartir este audio.
+      <div class="stat-item reveal reveal-delay-1">
+        <div class="stat-number"><span data-count="3">0</span></div>
+        <div class="stat-label">Tipos de deepfake</div>
       </div>
-    </div>
-  </section>
-
-  <hr />
-
-  <!-- FUNCIONALIDADES -->
-  <section id="funcionalidades">
-    <div class="section-label">Funcionalidades</div>
-    <h2>Detección completa de extremo a extremo</h2>
-    <p class="subtitle">14 capacidades integradas en un solo número de WhatsApp.</p>
-    <div class="features-grid">
-
-      <div class="feature-card">
-        <div class="feature-icon">🎙️</div>
-        <h3>Deepfake de audio</h3>
-        <p>Analiza notas de voz con Reality Defender SDK. Detecta síntesis y clonación de voz.</p>
+      <div class="stat-item reveal reveal-delay-2">
+        <div class="stat-number"><span data-count="14">0</span></div>
+        <div class="stat-label">Capacidades integradas</div>
       </div>
-
-      <div class="feature-card">
-        <div class="feature-icon">🖼️</div>
-        <h3>Deepfake de imagen</h3>
-        <p>Doble detector: Reality Defender + Sightengine con scoring compuesto para reducir falsos positivos.</p>
+      <div class="stat-item reveal reveal-delay-3">
+        <div class="stat-number"><span class="accent" data-count="0">0</span></div>
+        <div class="stat-label">Apps que instalar</div>
       </div>
-
-      <div class="feature-card">
-        <div class="feature-icon">🎬</div>
-        <h3>Deepfake de video</h3>
-        <p>Pipeline propio con OpenCV: inconsistencia temporal, varianza de Laplacian y densidad de bordes frame a frame.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-icon">🔗</div>
-        <h3>Escaneo de URLs</h3>
-        <p>Pega un enlace de YouTube, TikTok, Twitter o Instagram. El bot descarga y analiza el video automáticamente.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-icon">🔍</div>
-        <h3>Verificación de noticias</h3>
-        <p>Google Fact Check API + DuckDuckGo. Devuelve veredicto editorial con fuentes primarias.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-icon">📊</div>
-        <h3>Heatmap de frames</h3>
-        <p>PNG visual con scores de sospecha por frame en escala verde→rojo. Evidencia exportable.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-icon">✅</div>
-        <h3>Certificado de autenticidad</h3>
-        <p>Badge PNG con hash SHA-256 para contenido verificado como real. Trazable e infalsificable.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-icon">⚡</div>
-        <h3>Detección de reenvíos virales</h3>
-        <p>Identifica mensajes altamente reenviados y emite advertencia preventiva antes del análisis.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-icon">🤖</div>
-        <h3>Monitoreo automático de grupos</h3>
-        <p>El bot observa grupos en silencio y alerta solo cuando detecta contenido sospechoso. Cero ruido.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-icon">🛡️</div>
-        <h3>Rate limiting</h3>
-        <p>Ventana deslizante por número (5/hora · 15/día). Protección contra flood y abuso.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-icon">💾</div>
-        <h3>Deduplicación persistente</h3>
-        <p>Postgres evita re-analizar el mismo mensaje aunque el servidor se reinicie. Eficiencia real.</p>
-      </div>
-
-      <div class="feature-card">
-        <div class="feature-icon">📈</div>
-        <h3>Dashboard de analítica</h3>
-        <p>Next.js con tarjetas KPI, historial de análisis y badges de tier. Visibilidad operacional completa.</p>
-      </div>
-
-    </div>
-  </section>
-
-  <hr />
-
-  <!-- PIPELINE TÉCNICO -->
-  <section>
-    <div class="section-label">Arquitectura</div>
-    <h2>Construido para escalar</h2>
-    <p class="subtitle">Agente LangGraph con herramientas intercambiables, transporte Baileys y ML service en HF Spaces.</p>
-    <div class="pipeline"><span class="green">WhatsApp</span>
-  │  (WebSocket multi-device)
-  ▼
-<span class="green">Baileys Transport</span>  ──  Fastify HTTP API
-  │
-  ▼
-<span class="green">LangGraph Agent</span>  (Node 22 · TypeScript)
-  ├── detect_deepfake_audio   ──► Reality Defender SDK
-  ├── detect_deepfake_image   ──► Reality Defender + Sightengine
-  ├── detect_deepfake_video   ──► <span class="green">HF Space</span> (FastAPI · OpenCV · Python 3.12)
-  ├── fact_check              ──► Google Fact Check API + DuckDuckGo
-  ├── scan_url                ──► yt-dlp → video pipeline
-  └── generate_certificate    ──► sharp (PNG badge · SHA-256)
-
-<span class="dim">PostgreSQL 18  (Drizzle ORM)</span>
-  ├── conversations · messages · agent_runs · tool_calls
-  └── message_dedup  (restart-safe)
-
-<span class="dim">Next.js Dashboard</span>  (KPI cards · tier badges · run explorer)</div>
-  </section>
-
-  <hr />
-
-  <!-- TECNOLOGIA -->
-  <section id="tecnologia">
-    <div class="section-label">Tecnología</div>
-    <h2>Stack moderno, sin dependencias frágiles</h2>
-    <p class="subtitle">Cada capa elegida por robustez y velocidad de iteración.</p>
-    <div class="stack-grid">
-      <div class="stack-item">
-        <div class="layer">Transporte</div>
-        <div class="tech">Baileys</div>
-      </div>
-      <div class="stack-item">
-        <div class="layer">Runtime</div>
-        <div class="tech">Node 22 · TypeScript</div>
-      </div>
-      <div class="stack-item">
-        <div class="layer">Agente</div>
-        <div class="tech">LangGraph.js</div>
-      </div>
-      <div class="stack-item">
-        <div class="layer">LLM</div>
-        <div class="tech">OpenAI / Anthropic</div>
-      </div>
-      <div class="stack-item">
-        <div class="layer">Detección</div>
-        <div class="tech">Reality Defender · Sightengine</div>
-      </div>
-      <div class="stack-item">
-        <div class="layer">ML Service</div>
-        <div class="tech">FastAPI · OpenCV · HF Spaces</div>
-      </div>
-      <div class="stack-item">
-        <div class="layer">Base de datos</div>
-        <div class="tech">PostgreSQL · Drizzle ORM</div>
-      </div>
-      <div class="stack-item">
-        <div class="layer">Frontend</div>
-        <div class="tech">Next.js 15</div>
-      </div>
-      <div class="stack-item">
-        <div class="layer">CI/CD</div>
-        <div class="tech">GitHub Actions</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- CTA -->
-  <div class="cta-section">
-    <h2>Pruébalo ahora mismo</h2>
-    <p>El servicio ML está activo en Hugging Face Spaces. El código es open-source.</p>
-    <div class="cta-group">
-      <a href="https://github.com/yripper/indies-hackathon" class="btn btn-primary" target="_blank">Ver en GitHub</a>
-      <a href="https://dr4k3n-deepfake-detector.hf.space" class="btn btn-secondary" target="_blank">API en vivo</a>
     </div>
   </div>
 
-  <!-- FOOTER -->
+  <!-- ═══════════════ DEMO ═══════════════ -->
+  <section class="demo-section" id="demo">
+    <div class="demo-header reveal">
+      <div class="section-eyebrow">Cómo funciona</div>
+      <h2>Enviar un mensaje.<br>Obtener la verdad.</h2>
+      <p>Sin apps, sin registros, sin fricción. Si tienes WhatsApp, ya tienes Veritas.</p>
+    </div>
+
+    <div class="demo-layout">
+      <div class="flow-steps">
+        <div class="flow-step reveal">
+          <div class="flow-step-indicator">
+            <div class="flow-step-num">01</div>
+            <div class="flow-step-line"></div>
+          </div>
+          <div class="flow-step-content">
+            <h3>Envía el contenido sospechoso</h3>
+            <p>Audio, imagen, video, enlace de YouTube/TikTok o texto con una noticia que quieras verificar.</p>
+          </div>
+        </div>
+        <div class="flow-step reveal reveal-delay-1">
+          <div class="flow-step-indicator">
+            <div class="flow-step-num">02</div>
+            <div class="flow-step-line"></div>
+          </div>
+          <div class="flow-step-content">
+            <h3>Análisis multi-modelo en paralelo</h3>
+            <p>El agente enruta el contenido por los detectores adecuados: Reality Defender, Sightengine, modelos ML propios y fact-checkers.</p>
+          </div>
+        </div>
+        <div class="flow-step reveal reveal-delay-2">
+          <div class="flow-step-indicator">
+            <div class="flow-step-num">03</div>
+          </div>
+          <div class="flow-step-content">
+            <h3>Veredicto con evidencia</h3>
+            <p>Score de confianza, heatmap de frames, certificado de autenticidad SHA-256. Todo en lenguaje natural.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="phone-frame reveal reveal-delay-2">
+        <div class="phone-screen">
+          <div class="phone-header">
+            <div class="phone-header-avatar">V</div>
+            <div class="phone-header-info">
+              <div class="phone-header-name">Veritas Bot</div>
+              <div class="phone-header-status">en línea</div>
+            </div>
+          </div>
+          <div class="phone-chat">
+            <div class="chat-bubble sent">
+              <div>Analiza este audio, me lo mandaron por un grupo</div>
+              <div class="chat-time">14:32</div>
+            </div>
+            <div class="chat-bubble sent">
+              <div>🎙️ nota_de_voz.ogg (42s)</div>
+              <div class="chat-time">14:32</div>
+            </div>
+            <div class="chat-bubble received">
+              <div>Analizando con Reality Defender SDK...</div>
+              <div class="chat-time">14:32</div>
+            </div>
+            <div class="chat-bubble verdict-fake">
+              <div>
+                <strong>POSIBLE DEEPFAKE</strong><br>
+                Confianza: 87%<br>
+                Patrones de síntesis de voz detectados.<br>
+                <br>
+                Se recomienda no compartir.
+              </div>
+              <div class="chat-time">14:33</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ CAPABILITIES ═══════════════ -->
+  <section class="capabilities-section" id="capacidades">
+    <div class="capabilities-header reveal">
+      <div class="section-eyebrow">Capacidades</div>
+      <h2>Detección completa,<br>un solo número</h2>
+      <p>14 herramientas de análisis integradas en una interfaz que ya conoces.</p>
+    </div>
+
+    <div class="capabilities-grid reveal">
+      <div class="capability-card">
+        <div class="capability-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+        </div>
+        <h3>Deepfake de audio</h3>
+        <p>Reality Defender SDK analiza notas de voz. Detecta síntesis y clonación de voz con alta precisión.</p>
+      </div>
+      <div class="capability-card">
+        <div class="capability-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        </div>
+        <h3>Deepfake de imagen</h3>
+        <p>Doble detector con scoring compuesto. Reality Defender + Sightengine para reducir falsos positivos.</p>
+      </div>
+      <div class="capability-card">
+        <div class="capability-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+        </div>
+        <h3>Deepfake de video</h3>
+        <p>Pipeline OpenCV propio: inconsistencia temporal, varianza Laplacian y densidad de bordes frame a frame.</p>
+      </div>
+      <div class="capability-card">
+        <div class="capability-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        </div>
+        <h3>Escaneo de URLs</h3>
+        <p>YouTube, TikTok, Twitter, Instagram. El bot descarga y analiza el video automáticamente.</p>
+      </div>
+      <div class="capability-card">
+        <div class="capability-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </div>
+        <h3>Fact-checking</h3>
+        <p>Google Fact Check API + DuckDuckGo. Veredicto editorial con fuentes primarias verificadas.</p>
+      </div>
+      <div class="capability-card">
+        <div class="capability-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        <h3>Heatmap de frames</h3>
+        <p>Visualización de sospecha por frame en escala verde a rojo. Evidencia exportable como PNG.</p>
+      </div>
+      <div class="capability-card">
+        <div class="capability-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h3>Certificado SHA-256</h3>
+        <p>Badge PNG con hash criptográfico para contenido verificado como real. Trazable e infalsificable.</p>
+      </div>
+      <div class="capability-card">
+        <div class="capability-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <h3>Monitoreo de grupos</h3>
+        <p>El bot observa grupos en silencio y alerta solo cuando detecta contenido sospechoso. Cero ruido.</p>
+      </div>
+      <div class="capability-card">
+        <div class="capability-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="2"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+        </div>
+        <h3>Rate limiting</h3>
+        <p>Ventana deslizante por número: 5/hora, 15/día. Protección contra flood y abuso.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ ARCHITECTURE ═══════════════ -->
+  <section class="arch-section" id="arquitectura">
+    <div class="arch-inner">
+      <div class="arch-header reveal">
+        <div class="section-eyebrow">Arquitectura</div>
+        <h2>Ingeniería real,<br>no un prototipo</h2>
+        <p>Agente LangGraph con herramientas intercambiables, transporte multi-device y ML service dedicado.</p>
+      </div>
+
+      <div class="arch-diagram reveal">
+<span class="keyword">WhatsApp</span> <span class="comment">// WebSocket multi-device via Baileys</span>
+  │
+  ▼
+<span class="keyword">Baileys Transport</span>  ─── Fastify HTTP API
+  │
+  ▼
+<span class="keyword">LangGraph Agent</span>  <span class="type">(Node 22 · TypeScript)</span>
+  ├── detect_deepfake_audio   ──▸ <span class="string">Reality Defender SDK</span>
+  ├── detect_deepfake_image   ──▸ <span class="string">Reality Defender + Sightengine</span>
+  ├── detect_deepfake_video   ──▸ <span class="keyword">HF Space</span> <span class="type">(FastAPI · OpenCV · Python 3.11)</span>
+  ├── fact_check              ──▸ <span class="string">Google Fact Check + DuckDuckGo</span>
+  ├── scan_url                ──▸ <span class="string">yt-dlp → video pipeline</span>
+  └── generate_certificate    ──▸ <span class="string">sharp (PNG · SHA-256)</span>
+
+<span class="comment">// Persistencia</span>
+<span class="keyword">PostgreSQL 16</span> <span class="type">(Drizzle ORM)</span>
+  ├── conversations · messages · agent_runs · tool_calls
+  └── message_dedup  <span class="comment">// restart-safe</span>
+
+<span class="comment">// Frontend</span>
+<span class="keyword">Next.js Dashboard</span>  <span class="type">(KPI cards · tier badges · run explorer)</span></div>
+
+      <div class="stack-row reveal reveal-delay-1">
+        <div class="stack-pill"><span class="stack-pill-dot"></span> LangGraph.js</div>
+        <div class="stack-pill"><span class="stack-pill-dot"></span> Node 22</div>
+        <div class="stack-pill"><span class="stack-pill-dot"></span> TypeScript</div>
+        <div class="stack-pill"><span class="stack-pill-dot"></span> Baileys</div>
+        <div class="stack-pill"><span class="stack-pill-dot"></span> FastAPI</div>
+        <div class="stack-pill"><span class="stack-pill-dot"></span> OpenCV</div>
+        <div class="stack-pill"><span class="stack-pill-dot"></span> PostgreSQL</div>
+        <div class="stack-pill"><span class="stack-pill-dot"></span> Drizzle ORM</div>
+        <div class="stack-pill"><span class="stack-pill-dot"></span> Next.js 15</div>
+        <div class="stack-pill"><span class="stack-pill-dot"></span> HF Spaces</div>
+        <div class="stack-pill"><span class="stack-pill-dot"></span> Reality Defender</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ CTA ═══════════════ -->
+  <section class="cta-section" id="cta">
+    <div class="cta-content reveal">
+      <h2>Probalo ahora</h2>
+      <p>Escanea el QR para abrir un chat con Veritas en WhatsApp. Sin registro, sin descarga, resultado en segundos.</p>
+      <div class="cta-qr-area">
+        <div class="qr-placeholder">
+          <div class="qr-placeholder-inner"></div>
+        </div>
+        <span class="qr-label">Escanea con tu cámara</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════ FOOTER ═══════════════ -->
   <footer>
-    <p>Construido para <strong>hack@latam 2026</strong> &mdash; Veritas Team &middot;
-       <a href="https://github.com/yripper/indies-hackathon" style="color:var(--green);text-decoration:none">GitHub</a>
-    </p>
+    <div class="footer-left">
+      <span class="footer-logo">VERITAS</span>
+      <div class="footer-sep"></div>
+      <span class="footer-text">Construido para hack@latam 2026</span>
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/yripper/indies-hackathon" target="_blank">GitHub</a>
+      <a href="https://dr4k3n-deepfake-detector.hf.space" target="_blank">API</a>
+    </div>
   </footer>
+
+  <!-- ═══════════════ SCRIPTS ═══════════════ -->
+  <script>
+    // Intersection Observer for scroll-triggered reveals
+    const observerOptions = {
+      threshold: 0.1,
+      rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          // Trigger counter animation if the element contains a data-count
+          const counters = entry.target.querySelectorAll('[data-count]');
+          counters.forEach(counter => animateCounter(counter));
+        }
+      });
+    }, observerOptions);
+
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    // Counter animation
+    function animateCounter(el) {
+      if (el.dataset.animated) return;
+      el.dataset.animated = 'true';
+
+      const target = parseInt(el.dataset.count, 10);
+      const duration = 1500;
+      const start = performance.now();
+
+      function update(now) {
+        const elapsed = now - start;
+        const progress = Math.min(elapsed / duration, 1);
+        // Ease out cubic
+        const eased = 1 - Math.pow(1 - progress, 3);
+        el.textContent = Math.round(eased * target);
+        if (progress < 1) requestAnimationFrame(update);
+      }
+
+      requestAnimationFrame(update);
+    }
+
+    // Observe stat items individually for counter trigger
+    document.querySelectorAll('.stat-item').forEach(el => observer.observe(el));
+
+    // Smooth nav background on scroll
+    const nav = document.querySelector('nav');
+    let lastScroll = 0;
+    window.addEventListener('scroll', () => {
+      const scrolled = window.scrollY;
+      if (scrolled > 100) {
+        nav.style.borderBottomColor = 'var(--border)';
+      } else {
+        nav.style.borderBottomColor = 'var(--border-subtle)';
+      }
+      lastScroll = scrolled;
+    }, { passive: true });
+  </script>
 
 </body>
 </html>

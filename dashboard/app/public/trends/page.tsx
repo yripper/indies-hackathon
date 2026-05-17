@@ -1,7 +1,7 @@
+'use client';
+
 import Link from 'next/link';
 import { GlobeWrapper } from '@/components/globe-client';
-
-export const dynamic = 'force-dynamic';
 
 const GLOBE_POINTS = [
   { latitude: 19.4326, longitude: -99.1332, name: 'México', tier: 'fake' as const, count: 8 },
