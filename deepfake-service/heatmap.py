@@ -219,7 +219,7 @@ def generate_heatmap(
     n = len(frame_scores)
     gap = 2                        # gap between segment cells
     cell_w = max(1, (bar_total_w - gap * (n - 1)) // n)
-    radius = min(6, cell_h := BAR_H, cell_w // 2)
+    radius = min(6, BAR_H, cell_w // 2)
 
     # Background trough
     _rounded_rect(draw, bar_x0, BAR_Y, bar_x1, BAR_Y + BAR_H, 8, (35, 35, 45))

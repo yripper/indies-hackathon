@@ -111,7 +111,7 @@ class DeepfakeDetector:
                 raise ValueError("No frames could be analyzed")
 
         # Scoring heuristics
-        avg_lap = float(np.mean(laplacians))
+        _avg_lap = float(np.mean(laplacians))  # noqa: F841 — kept for future scoring
         lap_std = float(np.std(laplacians)) if len(laplacians) > 1 else 0.0
         avg_edge = float(np.mean(edges))
         temporal_inconsistency = float(np.std(face_diffs)) if len(face_diffs) > 1 else 0.0
