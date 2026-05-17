@@ -4,11 +4,20 @@ import { join } from 'node:path';
 import type { FastifyBaseLogger } from 'fastify';
 import { downloadMediaMessage, type WAMessage } from '@whiskeysockets/baileys';
 import type { SessionManager } from './session-manager';
+import { shouldAutoAnalyze } from '../group-monitor';
+import { detectForwarding, type ForwardInfo } from '../forward-detector';
 
 export type ConnectInput = {
   sessionsDir: string;
   sessionManager: SessionManager;
-  dispatchMessage: (customerPhone: string, customerName: string, text: string) => Promise<void>;
+  dispatchMessage: (
+    customerPhone: string,
+    customerName: string,
+    text: string,
+    forwardInfo?: ForwardInfo,
+  ) => Promise<void>;
+  /** Called for group messages when group monitoring is enabled. */
+  dispatchGroupMessage?: (groupJid: string, senderName: string, text: string) => Promise<void>;
   onQr: (qr: string) => void;
   onConnected: (phoneNumber: string, lid: string | null) => void;
   onDisconnected: () => void;
@@ -27,28 +36,49 @@ export async function connectClient(input: ConnectInput): Promise<void> {
         if (m.key.fromMe) continue;
         const remoteJid = m.key.remoteJid;
         if (!remoteJid) continue;
+
+        const isGroup = remoteJid.endsWith('@g.us');
         // Accept DMs (@s.whatsapp.net) and Baileys 7 @lid identifiers (privacy-mode users).
         const isDm = remoteJid.endsWith('@s.whatsapp.net') || remoteJid.endsWith('@lid');
-        if (!isDm) continue;
+
+        if (!isDm && !isGroup) continue;
 
         const customerName = m.pushName ?? '';
+
+        if (isGroup) {
+          // Group auto-monitoring path
+          const decision = shouldAutoAnalyze(m, remoteJid);
+          if (!decision.analyze || !decision.instruction) continue;
+
+          const dispatchGroup = input.dispatchGroupMessage;
+          if (!dispatchGroup) continue;
+
+          dispatchGroup(remoteJid, customerName, decision.instruction).catch((err) => {
+            input.log.error({ err, jid: remoteJid }, 'group dispatchMessage failed');
+          });
+          continue;
+        }
+
+        // DM path
         const text = extractText(m.message);
         const isVideo = isVideoMessage(m.message);
 
         if (!text && !isVideo) continue;
 
+        const forwardInfo = detectForwarding(m);
+
         if (isVideo) {
-          handleVideoMessage(m, remoteJid, customerName, text, input).catch((err) => {
+          handleVideoMessage(m, remoteJid, customerName, text, forwardInfo, input).catch((err) => {
             input.log.error({ err }, 'video dispatch failed');
             // Fallback to text-only if download fails and there is a caption
             if (text) {
-              input.dispatchMessage(remoteJid, customerName, text).catch((e) =>
+              input.dispatchMessage(remoteJid, customerName, text, forwardInfo).catch((e) =>
                 input.log.error({ err: e }, 'dispatchMessage fallback failed'),
               );
             }
           });
         } else {
-          input.dispatchMessage(remoteJid, customerName, text!).catch((err) => {
+          input.dispatchMessage(remoteJid, customerName, text!, forwardInfo).catch((err) => {
             input.log.error({ err }, 'dispatchMessage failed');
           });
         }
@@ -66,6 +96,7 @@ async function handleVideoMessage(
   remoteJid: string,
   customerName: string,
   caption: string | null,
+  forwardInfo: ForwardInfo,
   input: ConnectInput,
 ): Promise<void> {
   const buffer = (await downloadMediaMessage(fullMessage, 'buffer', {})) as Buffer;
@@ -76,7 +107,7 @@ async function handleVideoMessage(
     ? `[VIDEO:${tmpPath}] ${caption}`
     : `[VIDEO:${tmpPath}] El usuario envió un video. Analiza si es un deepfake.`;
 
-  await input.dispatchMessage(remoteJid, customerName, text);
+  await input.dispatchMessage(remoteJid, customerName, text, forwardInfo);
 
   // Give the agent 60 s to read the file before cleaning up.
   setTimeout(() => unlink(tmpPath).catch(() => {}), 60_000);

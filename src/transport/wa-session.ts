@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { FastifyBaseLogger } from 'fastify';
 import type { SessionManager } from './baileys/session-manager';
 import { connectClient } from './baileys/connect-client';
+import type { ForwardInfo } from './forward-detector';
 
 type State = {
   connected: boolean;
@@ -14,7 +15,14 @@ type State = {
 export type WaSessionDeps = {
   sessionsDir: string;
   sessionManager: SessionManager;
-  dispatchMessage: (customerPhone: string, customerName: string, text: string) => Promise<void>;
+  dispatchMessage: (
+    customerPhone: string,
+    customerName: string,
+    text: string,
+    forwardInfo?: ForwardInfo,
+  ) => Promise<void>;
+  /** Optional — wired when GROUP_MONITOR_ENABLED=true to handle auto-analyzed group messages. */
+  dispatchGroupMessage?: (groupJid: string, senderName: string, text: string) => Promise<void>;
   log: FastifyBaseLogger;
 };
 
@@ -50,6 +58,7 @@ export class WaSession {
           sessionsDir: this.deps.sessionsDir,
           sessionManager: this.deps.sessionManager,
           dispatchMessage: this.deps.dispatchMessage,
+          dispatchGroupMessage: this.deps.dispatchGroupMessage,
           log: this.deps.log,
           onQr: (qr) => {
             this.state.lastQr = qr;

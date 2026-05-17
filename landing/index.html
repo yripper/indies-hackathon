@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Veritas — Anti-desinformación para WhatsApp</title>
+  <style>
+    :root {
+      --green: #22c55e;
+      --green-dark: #16a34a;
+      --red: #ef4444;
+      --gray-900: #0f0f0f;
+      --gray-800: #1a1a1a;
+      --gray-700: #262626;
+      --gray-400: #a3a3a3;
+      --gray-200: #e5e5e5;
+      --white: #ffffff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--gray-900);
+      color: var(--white);
+      line-height: 1.6;
+    }
+
+    /* NAV */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.25rem 2rem;
+      border-bottom: 1px solid var(--gray-700);
+      position: sticky;
+      top: 0;
+      background: rgba(15,15,15,0.92);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+    }
+
+    .logo {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--green);
+    }
+
+    nav a {
+      color: var(--gray-400);
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: color 0.2s;
+    }
+
+    nav a:hover { color: var(--white); }
+    nav ul { display: flex; gap: 2rem; list-style: none; }
+
+    /* HERO */
+    .hero {
+      text-align: center;
+      padding: 6rem 2rem 4rem;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .badge {
+      display: inline-block;
+      background: var(--gray-800);
+      border: 1px solid var(--gray-700);
+      border-radius: 999px;
+      padding: 0.25rem 0.85rem;
+      font-size: 0.78rem;
+      color: var(--green);
+      letter-spacing: 0.05em;
+      margin-bottom: 1.5rem;
+    }
+
+    h1 {
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 1.25rem;
+    }
+
+    h1 span { color: var(--green); }
+
+    .hero p {
+      font-size: 1.15rem;
+      color: var(--gray-400);
+      max-width: 580px;
+      margin: 0 auto 2.5rem;
+    }
+
+    .cta-group {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 0.75rem 1.75rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-decoration: none;
+      transition: opacity 0.2s, transform 0.15s;
+    }
+
+    .btn:hover { opacity: 0.88; transform: translateY(-1px); }
+
+    .btn-primary {
+      background: var(--green);
+      color: var(--gray-900);
+    }
+
+    .btn-secondary {
+      background: var(--gray-800);
+      color: var(--white);
+      border: 1px solid var(--gray-700);
+    }
+
+    /* SECTION COMMON */
+    section {
+      padding: 5rem 2rem;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .section-label {
+      font-size: 0.78rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 0.75rem;
+    }
+
+    h2 {
+      font-size: clamp(1.75rem, 3.5vw, 2.25rem);
+      font-weight: 700;
+      margin-bottom: 1rem;
+    }
+
+    .subtitle {
+      color: var(--gray-400);
+      max-width: 520px;
+      margin-bottom: 3rem;
+    }
+
+    /* HOW IT WORKS */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 2rem;
+    }
+
+    .step {
+      background: var(--gray-800);
+      border: 1px solid var(--gray-700);
+      border-radius: 12px;
+      padding: 1.75rem;
+    }
+
+    .step-num {
+      width: 2rem;
+      height: 2rem;
+      background: var(--green);
+      color: var(--gray-900);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.9rem;
+      margin-bottom: 1rem;
+    }
+
+    .step h3 { font-size: 1rem; margin-bottom: 0.5rem; }
+    .step p { color: var(--gray-400); font-size: 0.9rem; }
+
+    /* FEATURES GRID */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .feature-card {
+      background: var(--gray-800);
+      border: 1px solid var(--gray-700);
+      border-radius: 12px;
+      padding: 1.5rem;
+      transition: border-color 0.2s;
+    }
+
+    .feature-card:hover { border-color: var(--green-dark); }
+
+    .feature-icon {
+      font-size: 1.6rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .feature-card h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+
+    .feature-card p {
+      color: var(--gray-400);
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    /* DETECTION PIPELINE */
+    .pipeline {
+      background: var(--gray-800);
+      border: 1px solid var(--gray-700);
+      border-radius: 12px;
+      padding: 2rem;
+      font-family: 'SF Mono', 'Fira Mono', 'Courier New', monospace;
+      font-size: 0.85rem;
+      line-height: 1.8;
+      color: var(--gray-200);
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    .pipeline .green { color: var(--green); }
+    .pipeline .dim { color: var(--gray-400); }
+
+    /* TECH STACK */
+    .stack-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 1rem;
+    }
+
+    .stack-item {
+      background: var(--gray-800);
+      border: 1px solid var(--gray-700);
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .stack-item .layer {
+      font-size: 0.7rem;
+      color: var(--green);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 0.3rem;
+    }
+
+    .stack-item .tech {
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    /* VERDICT DEMO */
+    .verdict-demo {
+      background: var(--gray-800);
+      border: 1px solid var(--gray-700);
+      border-radius: 12px;
+      padding: 1.5rem;
+      max-width: 480px;
+    }
+
+    .verdict-demo .msg {
+      background: var(--gray-700);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.88rem;
+      margin-bottom: 0.75rem;
+      color: var(--gray-200);
+    }
+
+    .verdict-demo .reply {
+      background: #14532d;
+      border: 1px solid #166534;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.88rem;
+      color: #86efac;
+    }
+
+    .verdict-demo .reply.warn {
+      background: #7f1d1d;
+      border-color: #991b1b;
+      color: #fca5a5;
+    }
+
+    /* CTA SECTION */
+    .cta-section {
+      text-align: center;
+      background: var(--gray-800);
+      border-top: 1px solid var(--gray-700);
+      border-bottom: 1px solid var(--gray-700);
+      padding: 5rem 2rem;
+    }
+
+    .cta-section h2 { margin-bottom: 1rem; }
+    .cta-section p { color: var(--gray-400); margin-bottom: 2rem; }
+
+    /* FOOTER */
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--gray-400);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--gray-700);
+    }
+
+    /* DIVIDER */
+    hr {
+      border: none;
+      border-top: 1px solid var(--gray-700);
+    }
+
+    /* RESPONSIVE */
+    @media (max-width: 600px) {
+      nav ul { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <span class="logo">⚔ VERITAS</span>
+    <ul>
+      <li><a href="#como-funciona">Cómo funciona</a></li>
+      <li><a href="#funcionalidades">Funcionalidades</a></li>
+      <li><a href="#tecnologia">Tecnología</a></li>
+      <li><a href="https://github.com/yripper/indies-hackathon" target="_blank">GitHub</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <span class="badge">hack@latam 2026</span>
+    <h1>Combate la <span>desinformación</span><br>en WhatsApp</h1>
+    <p>
+      Veritas detecta deepfakes en audio, imagen y video, verifica noticias en tiempo real
+      y protege grupos automáticamente — todo desde tu WhatsApp habitual.
+    </p>
+    <div class="cta-group">
+      <a href="https://github.com/yripper/indies-hackathon" class="btn btn-primary" target="_blank">Ver código</a>
+      <a href="https://dr4k3n-deepfake-detector.hf.space" class="btn btn-secondary" target="_blank">Demo en vivo</a>
+    </div>
+  </section>
+
+  <hr />
+
+  <!-- COMO FUNCIONA -->
+  <section id="como-funciona">
+    <div class="section-label">Proceso</div>
+    <h2>Tres pasos, menos de 10 segundos</h2>
+    <p class="subtitle">No hace falta instalar nada nuevo. Si tienes WhatsApp, ya tienes Veritas.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Envía el contenido</h3>
+        <p>Manda un audio, imagen, video, enlace de YouTube/TikTok o un texto con una noticia sospechosa.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Veritas analiza</h3>
+        <p>El agente enruta el contenido por los detectores adecuados: Reality Defender, Sightengine, modelos de ML propios y buscadores de fact-checking.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Recibes el veredicto</h3>
+        <p>Obtienes un resultado en lenguaje natural, score de confianza, heatmap de frames (video) o certificado de autenticidad (contenido real).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- EJEMPLO DE VEREDICTO -->
+  <section style="padding-top:0">
+    <div class="verdict-demo">
+      <div class="msg">📹 <em>[Video adjunto — 18 s]</em></div>
+      <div class="reply">
+        ✅ <strong>Veredicto: AUTÉNTICO</strong><br>
+        Confianza: 94 % · 24 frames analizados<br>
+        Ningún indicador de manipulación detectado.<br>
+        Certificado SHA-256 generado.
+      </div>
+    </div>
+    &nbsp;
+    <div class="verdict-demo" style="margin-top:1rem">
+      <div class="msg">🔊 <em>[Nota de voz — 42 s]</em></div>
+      <div class="reply warn">
+        ⚠️ <strong>Veredicto: POSIBLE DEEPFAKE</strong><br>
+        Confianza: 87 % · Reality Defender SDK<br>
+        Patrones de síntesis de voz detectados.<br>
+        Se recomienda no compartir este audio.
+      </div>
+    </div>
+  </section>
+
+  <hr />
+
+  <!-- FUNCIONALIDADES -->
+  <section id="funcionalidades">
+    <div class="section-label">Funcionalidades</div>
+    <h2>Detección completa de extremo a extremo</h2>
+    <p class="subtitle">14 capacidades integradas en un solo número de WhatsApp.</p>
+    <div class="features-grid">
+
+      <div class="feature-card">
+        <div class="feature-icon">🎙️</div>
+        <h3>Deepfake de audio</h3>
+        <p>Analiza notas de voz con Reality Defender SDK. Detecta síntesis y clonación de voz.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🖼️</div>
+        <h3>Deepfake de imagen</h3>
+        <p>Doble detector: Reality Defender + Sightengine con scoring compuesto para reducir falsos positivos.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🎬</div>
+        <h3>Deepfake de video</h3>
+        <p>Pipeline propio con OpenCV: inconsistencia temporal, varianza de Laplacian y densidad de bordes frame a frame.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🔗</div>
+        <h3>Escaneo de URLs</h3>
+        <p>Pega un enlace de YouTube, TikTok, Twitter o Instagram. El bot descarga y analiza el video automáticamente.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🔍</div>
+        <h3>Verificación de noticias</h3>
+        <p>Google Fact Check API + DuckDuckGo. Devuelve veredicto editorial con fuentes primarias.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>Heatmap de frames</h3>
+        <p>PNG visual con scores de sospecha por frame en escala verde→rojo. Evidencia exportable.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">✅</div>
+        <h3>Certificado de autenticidad</h3>
+        <p>Badge PNG con hash SHA-256 para contenido verificado como real. Trazable e infalsificable.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3>Detección de reenvíos virales</h3>
+        <p>Identifica mensajes altamente reenviados y emite advertencia preventiva antes del análisis.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🤖</div>
+        <h3>Monitoreo automático de grupos</h3>
+        <p>El bot observa grupos en silencio y alerta solo cuando detecta contenido sospechoso. Cero ruido.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">🛡️</div>
+        <h3>Rate limiting</h3>
+        <p>Ventana deslizante por número (5/hora · 15/día). Protección contra flood y abuso.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">💾</div>
+        <h3>Deduplicación persistente</h3>
+        <p>Postgres evita re-analizar el mismo mensaje aunque el servidor se reinicie. Eficiencia real.</p>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-icon">📈</div>
+        <h3>Dashboard de analítica</h3>
+        <p>Next.js con tarjetas KPI, historial de análisis y badges de tier. Visibilidad operacional completa.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <hr />
+
+  <!-- PIPELINE TÉCNICO -->
+  <section>
+    <div class="section-label">Arquitectura</div>
+    <h2>Construido para escalar</h2>
+    <p class="subtitle">Agente LangGraph con herramientas intercambiables, transporte Baileys y ML service en HF Spaces.</p>
+    <div class="pipeline"><span class="green">WhatsApp</span>
+  │  (WebSocket multi-device)
+  ▼
+<span class="green">Baileys Transport</span>  ──  Fastify HTTP API
+  │
+  ▼
+<span class="green">LangGraph Agent</span>  (Node 22 · TypeScript)
+  ├── detect_deepfake_audio   ──► Reality Defender SDK
+  ├── detect_deepfake_image   ──► Reality Defender + Sightengine
+  ├── detect_deepfake_video   ──► <span class="green">HF Space</span> (FastAPI · OpenCV · Python 3.12)
+  ├── fact_check              ──► Google Fact Check API + DuckDuckGo
+  ├── scan_url                ──► yt-dlp → video pipeline
+  └── generate_certificate    ──► sharp (PNG badge · SHA-256)
+
+<span class="dim">PostgreSQL 18  (Drizzle ORM)</span>
+  ├── conversations · messages · agent_runs · tool_calls
+  └── message_dedup  (restart-safe)
+
+<span class="dim">Next.js Dashboard</span>  (KPI cards · tier badges · run explorer)</div>
+  </section>
+
+  <hr />
+
+  <!-- TECNOLOGIA -->
+  <section id="tecnologia">
+    <div class="section-label">Tecnología</div>
+    <h2>Stack moderno, sin dependencias frágiles</h2>
+    <p class="subtitle">Cada capa elegida por robustez y velocidad de iteración.</p>
+    <div class="stack-grid">
+      <div class="stack-item">
+        <div class="layer">Transporte</div>
+        <div class="tech">Baileys</div>
+      </div>
+      <div class="stack-item">
+        <div class="layer">Runtime</div>
+        <div class="tech">Node 22 · TypeScript</div>
+      </div>
+      <div class="stack-item">
+        <div class="layer">Agente</div>
+        <div class="tech">LangGraph.js</div>
+      </div>
+      <div class="stack-item">
+        <div class="layer">LLM</div>
+        <div class="tech">OpenAI / Anthropic</div>
+      </div>
+      <div class="stack-item">
+        <div class="layer">Detección</div>
+        <div class="tech">Reality Defender · Sightengine</div>
+      </div>
+      <div class="stack-item">
+        <div class="layer">ML Service</div>
+        <div class="tech">FastAPI · OpenCV · HF Spaces</div>
+      </div>
+      <div class="stack-item">
+        <div class="layer">Base de datos</div>
+        <div class="tech">PostgreSQL · Drizzle ORM</div>
+      </div>
+      <div class="stack-item">
+        <div class="layer">Frontend</div>
+        <div class="tech">Next.js 15</div>
+      </div>
+      <div class="stack-item">
+        <div class="layer">CI/CD</div>
+        <div class="tech">GitHub Actions</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <div class="cta-section">
+    <h2>Pruébalo ahora mismo</h2>
+    <p>El servicio ML está activo en Hugging Face Spaces. El código es open-source.</p>
+    <div class="cta-group">
+      <a href="https://github.com/yripper/indies-hackathon" class="btn btn-primary" target="_blank">Ver en GitHub</a>
+      <a href="https://dr4k3n-deepfake-detector.hf.space" class="btn btn-secondary" target="_blank">API en vivo</a>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <p>Construido para <strong>hack@latam 2026</strong> &mdash; Veritas Team &middot;
+       <a href="https://github.com/yripper/indies-hackathon" style="color:var(--green);text-decoration:none">GitHub</a>
+    </p>
+  </footer>
+
+</body>
+</html>

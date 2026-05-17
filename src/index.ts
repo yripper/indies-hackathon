@@ -10,7 +10,8 @@ import { WaSession } from './transport/wa-session';
 import { buildLlm } from './agent/llm';
 import { buildGraph } from './agent/graph';
 import { resolveTools } from './agent/tools';
-import { handleIncomingMessage } from './transport/message-router';
+import { handleIncomingMessage, handleGroupMessage } from './transport/message-router';
+import { isGroupMonitorEnabled } from './transport/group-monitor';
 import { healthRoutes } from './api/health';
 import { waRoutes } from './api/wa';
 import { debugRoutes } from './api/debug';
@@ -36,6 +37,7 @@ async function main(): Promise<void> {
     customerPhone: string,
     customerName: string,
     text: string,
+    forwardInfo?: import('./transport/forward-detector').ForwardInfo,
   ): Promise<void> {
     await handleIncomingMessage(
       {
@@ -45,7 +47,37 @@ async function main(): Promise<void> {
         send: (to, body) => sender.send(to, body),
         sendImage: (to, imageBuffer, caption) => sender.sendImage(to, imageBuffer, caption),
       },
-      { customerPhone, customerName, text },
+      { customerPhone, customerName, text, forwardInfo },
+    );
+  }
+
+  // Group auto-monitoring dispatch — only wired when the feature flag is on.
+  async function dispatchGroupMessage(
+    groupJid: string,
+    senderName: string,
+    instruction: string,
+  ): Promise<void> {
+    // The analysisType is embedded in the instruction by shouldAutoAnalyze; we
+    // re-derive it here from a simple keyword scan so we can pass it to the router.
+    const analysisType = instruction.includes('analyze_audio_deepfake')
+      ? 'audio' as const
+      : instruction.includes('analyze_image_deepfake')
+        ? 'image' as const
+        : instruction.includes('detect_deepfake_video')
+          ? 'video' as const
+          : instruction.includes('scan_url_deepfake')
+            ? 'url' as const
+            : 'factcheck' as const;
+
+    await handleGroupMessage(
+      {
+        db,
+        config: agentConfig,
+        graph,
+        send: (to, body) => sender.send(to, body),
+        sendImage: (to, imageBuffer, caption) => sender.sendImage(to, imageBuffer, caption),
+      },
+      { groupJid, senderName, instruction, analysisType },
     );
   }
 
@@ -53,6 +85,7 @@ async function main(): Promise<void> {
     sessionsDir: env.SESSIONS_DIR,
     sessionManager,
     dispatchMessage,
+    dispatchGroupMessage: isGroupMonitorEnabled() ? dispatchGroupMessage : undefined,
     log: app.log,
   });
 

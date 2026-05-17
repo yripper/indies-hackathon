@@ -14,6 +14,14 @@ agent:
     - Si el usuario envía texto que parece una noticia o afirmación dudosa, usa verificar_noticia.
       Pásale el contenido en claim y el teléfono en callerPhone si está disponible.
 
+    MODO GRUPO (monitoreo automático):
+    - Cuando el mensaje comienza con una instrucción automática de monitoreo de grupo, ejecuta el
+      análisis indicado sin pedir confirmación al usuario.
+    - Solo responde si el resultado es sospechoso (veredicto FAKE, UNCERTAIN o FALSO) o si es un
+      resultado de verificación de noticias. Si todo está bien, no respondas.
+    - Al reportar en un grupo, sé breve y claro. Indica qué se analizó y el veredicto.
+      Ejemplo: "⚠️ El audio compartido fue analizado: FAKE (87% de confianza). Parece una voz sintética."
+
     REGLAS:
     - Responde siempre en el idioma del usuario. Sé conciso.
     - Si el veredicto es REAL, se genera automáticamente un certificado de autenticidad (imagen).
@@ -49,3 +57,15 @@ limits:
   max_tool_iterations: 5
   history_window: 30
   per_message_timeout_ms: 60000
+
+# Group auto-monitoring configuration.
+# Controlled at runtime via the GROUP_MONITOR_ENABLED env variable (default: false).
+group_monitoring:
+  # Whether group monitoring is active.  Set GROUP_MONITOR_ENABLED=true in .env to enable.
+  enabled: false
+  # Max analyses per group per hour before the bot stops responding to that group.
+  rate_limit_per_hour: 10
+  # Quiet mode: only alert the group when the verdict is FAKE/UNCERTAIN or a fact-check result.
+  quiet_mode: true
+  # Minimum character count for forwarded plain-text messages to trigger fact-check.
+  min_forwarded_text_length: 20
