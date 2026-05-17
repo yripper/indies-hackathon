@@ -16,5 +16,20 @@ services:
       interval: 5s
       retries: 10
 
+# Servicio ML de detección de deepfakes.
+# Para levantarlo en la demo: docker compose --profile ml up deepfake
+  deepfake:
+    build: ./deepfake-service
+    container_name: indies-deepfake
+    restart: unless-stopped
+    ports:
+      - "7860:7860"
+    profiles:
+      - ml
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:7860/health"]
+      interval: 10s
+      retries: 5
+
 volumes:
   indies-pg-data:

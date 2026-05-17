@@ -514,6 +514,63 @@ Tool files must `import { z } from 'zod/v3'` (the Zod v3 compat subpath bundled 
 
 ---
 
+## Deepfake video detection
+
+Mirrors the audio + image flow. Baileys downloads incoming videos and caches the bytes via `video-cache.ts` keyed by JID; the zero-param `analyze_video_deepfake` tool reads from that cache, POSTs the bytes to a Python sidecar, and returns a Spanish verdict. The agent follows the same CASE 1–5 confirmation flow as audio/image: bare video → ask "¿analizo?", caption with a question → analyze immediately.
+
+### How it works
+
+1. **MTCNN** (`facenet-pytorch`) extracts the largest face per sampled frame (20 frames evenly across the video, capped at 5 min of footage).
+2. Each face crop is scored by **`dima806/deepfake_vs_real_image_detection`** — an EfficientNetB0 fine-tuned on a face-focused deepfake dataset.
+3. Scores are aggregated across frames; the sidecar returns `{verdict, confidence, faces_found, frames_analyzed, temporal_inconsistency, detail}`.
+4. The Node tool (`src/agent/tools/analyze-video-deepfake.ts`) maps that to the three-tier shape (`real` / `uncertain` / `fake`) and renders a Spanish RESULTADO + Recomendación + Detalle técnico block, matching the audio/image verdict style.
+
+### Setup — local Docker (recommended)
+
+The sidecar is in `docker-compose.yml` under the `ml` profile so it doesn't pull multi-GB ML deps for devs who don't need video:
+
+```bash
+docker compose --profile ml up -d deepfake
+# First build downloads ~500 MB of MTCNN + EfficientNetB0 weights — takes 5-10 min.
+# Subsequent starts are seconds.
+curl http://localhost:7860/health    # {"status":"ok","model_loaded":true}
+```
+
+Add to `.env`:
+
+```bash
+DEEPFAKE_SERVICE_URL=http://localhost:7860
+```
+
+That's it — the tool and yaml are already wired on `k2`. Restart `pnpm dev`.
+
+### Setup — Hugging Face Spaces (alternative)
+
+The `deepfake-service/` Dockerfile is Spaces-ready (`EXPOSE 7860`). Deploy as a Space and point `.env` at it:
+
+```bash
+DEEPFAKE_SERVICE_URL=https://<your-hf-username>-deepfake-detector.hf.space
+```
+
+No local Docker needed in that case.
+
+### Triggering the tool
+
+| User action in WhatsApp | Bot behavior |
+|---|---|
+| Sends a video (no caption) | Bot asks: "Detecté un video. ¿Querés que lo analice?" — wait for `sí`/`dale` to proceed (CASE 1) |
+| Sends video with caption like "¿es deepfake?" | Bot analyzes immediately (CASE 2 implicit consent) |
+| Sends video + caption "@bot ¿es real?" in a group | Same as above; the mention extractor handles caption-mentions |
+
+### Models used
+
+| Model | Role |
+|---|---|
+| [MTCNN](https://github.com/timesler/facenet-pytorch) | Face detection — extracts the largest face per sampled frame |
+| [`dima806/deepfake_vs_real_image_detection`](https://huggingface.co/dima806/deepfake_vs_real_image_detection) | EfficientNetB0 deepfake classifier |
+
+---
+
 ## API endpoints
 
 | Method | Path | Purpose |

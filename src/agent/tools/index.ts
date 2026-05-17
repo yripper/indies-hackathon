@@ -4,6 +4,7 @@ import { getCurrentTimeTool } from './get-current-time';
 import { calculatorTool } from './calculator';
 import { analyzeAudioDeepfakeTool } from './analyze-audio-deepfake';
 import { analyzeImageDeepfakeTool } from './analyze-image-deepfake';
+import { analyzeVideoDeepfakeTool } from './analyze-video-deepfake';
 
 const REGISTRY: Record<string, StructuredToolInterface> = {
   echo: echoTool,
@@ -11,6 +12,7 @@ const REGISTRY: Record<string, StructuredToolInterface> = {
   calculator: calculatorTool,
   analyze_audio_deepfake: analyzeAudioDeepfakeTool,
   analyze_image_deepfake: analyzeImageDeepfakeTool,
+  analyze_video_deepfake: analyzeVideoDeepfakeTool,
 };
 
 export function resolveTools(enabled: string[]): StructuredToolInterface[] {

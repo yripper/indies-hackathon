@@ -14,7 +14,14 @@ import { resolveTools, listAvailableTools } from '../../../src/agent/tools';
 
 describe('resolveTools', () => {
   it('lists all built-in tool names', () => {
-    expect(listAvailableTools().sort()).toEqual(['analyze_audio_deepfake', 'analyze_image_deepfake', 'calculator', 'echo', 'get_current_time']);
+    expect(listAvailableTools().sort()).toEqual([
+      'analyze_audio_deepfake',
+      'analyze_image_deepfake',
+      'analyze_video_deepfake',
+      'calculator',
+      'echo',
+      'get_current_time',
+    ]);
   });
 
   it('resolves only the requested tools, preserving order', () => {

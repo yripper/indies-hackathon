@@ -10,6 +10,7 @@ import { extractTrace } from '../agent/trace';
 import { withConversation } from '../agent/context';
 import { peekPendingAudio } from './audio-cache';
 import { peekPendingImage } from './image-cache';
+import { peekPendingVideo } from './video-cache';
 import { audioAnalysesRepo } from '../db/queries/audio-analyses';
 import { imageAnalysesRepo } from '../db/queries/image-analyses';
 
@@ -152,12 +153,13 @@ async function handleIncomingMessageInner(
     model: deps.config.provider.model,
   });
 
-  // Peek pending audio and image (neither consumes). MiniMax M2 rejects
-  // requests with more than one role=system message, so we fold both hints
+  // Peek pending audio, image and video (none consume). MiniMax M2 rejects
+  // requests with more than one role=system message, so we fold all hints
   // into a single ephemeral note appended to the static system prompt for
   // THIS turn only via ALS. History and DB stay clean of stale markers.
   const pendingAudio = peekPendingAudio(msg.customerPhone);
   const pendingImage = peekPendingImage(msg.customerPhone);
+  const pendingVideo = peekPendingVideo(msg.customerPhone);
   const notes: string[] = [];
   if (pendingAudio) {
     const src =
@@ -183,6 +185,18 @@ async function handleIncomingMessageInner(
       `[router] pending image detected (mime=${pendingImage.mimetype} bytes=${pendingImage.bytes} source=${pendingImage.source})`,
     );
   }
+  if (pendingVideo) {
+    const src =
+      pendingVideo.source === 'direct'
+        ? 'reenvío directo del usuario'
+        : 'respuesta a un mensaje (reply-tag) del grupo';
+    notes.push(
+      `Contexto interno actualizado para este turno: hay un video pendiente de análisis en esta conversación (mime=${pendingVideo.mimetype}, ${pendingVideo.bytes} bytes), listo para analizar con la herramienta analyze_video_deepfake. Origen: ${src}. Aplicá las reglas de tu system prompt para video pendiente.`,
+    );
+    console.log(
+      `[router] pending video detected (mime=${pendingVideo.mimetype} bytes=${pendingVideo.bytes} source=${pendingVideo.source})`,
+    );
+  }
   if (notes.length === 0) {
     console.log('[router] no pending media for this conversation');
   }
@@ -196,7 +210,7 @@ async function handleIncomingMessageInner(
   // signal that the original prototype carried as "[Imagen adjunta: URL]".
   // DB history stays untouched; only the in-flight replay carries the marker.
   const replayMessages = history.map(toLangChainMessage);
-  if ((pendingAudio || pendingImage) && replayMessages.length > 0) {
+  if ((pendingAudio || pendingImage || pendingVideo) && replayMessages.length > 0) {
     const lastIdx = replayMessages.length - 1;
     const last = replayMessages[lastIdx];
     if (last instanceof HumanMessage && typeof last.content === 'string') {
@@ -210,6 +224,12 @@ async function handleIncomingMessageInner(
       if (pendingAudio) {
         markers.push(
           `[adjuntó un audio (${pendingAudio.durationSec}s, ${pendingAudio.mimetype}) listo para analyze_audio_deepfake]`,
+        );
+      }
+      if (pendingVideo) {
+        const mb = (pendingVideo.bytes / (1024 * 1024)).toFixed(1);
+        markers.push(
+          `[adjuntó un video (${pendingVideo.mimetype}, ${mb} MB) listo para analyze_video_deepfake]`,
         );
       }
       replayMessages[lastIdx] = new HumanMessage({
