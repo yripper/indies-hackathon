@@ -38,9 +38,7 @@ export function loadAgentConfig(filePath: string): AgentConfig {
   const parsed = parseYaml(raw);
   const result = AgentConfigSchema.safeParse(parsed);
   if (!result.success) {
-    const msg = typeof (z as { prettifyError?: (e: unknown) => string }).prettifyError === 'function'
-      ? (z as { prettifyError: (e: unknown) => string }).prettifyError(result.error)
-      : JSON.stringify(result.error.format(), null, 2);
+    const msg = JSON.stringify(result.error.format(), null, 2);
     throw new Error(`Invalid agent config at ${filePath}: ${msg}`);
   }
   return result.data;
