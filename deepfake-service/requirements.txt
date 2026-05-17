@@ -6,6 +6,8 @@ facenet-pytorch==2.6.0
 torch>=2.0.0
 torchvision>=0.15.0
 transformers==4.44.2
-Pillow==10.4.0
+# facenet-pytorch 2.6.0 pins Pillow<10.3 — let pip pick anything in that
+# window rather than hard-pinning a single patch.
+Pillow>=10.2.0,<10.3.0
 python-multipart==0.0.9
 numpy>=1.24.0
