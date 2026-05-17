@@ -504,11 +504,24 @@ async function handleVideo(
   pendingVideoDispatches.set(remoteJid, { timer, pushName: customerName });
 }
 
+// Mentions can sit in contextInfo of the text wrapper OR of the media itself
+// when the caption carries the @tag (e.g. "@bot ¿es esta imagen real?" sent
+// as the image's caption rather than as a follow-up text). Check all four
+// wrappers so captioned media in groups isn't silently dropped.
 function extractMentionedJids(message: unknown): string[] {
   const m = message as {
     extendedTextMessage?: { contextInfo?: { mentionedJid?: string[] | null } | null } | null;
-  };
-  return m.extendedTextMessage?.contextInfo?.mentionedJid ?? [];
+    imageMessage?: { contextInfo?: { mentionedJid?: string[] | null } | null } | null;
+    videoMessage?: { contextInfo?: { mentionedJid?: string[] | null } | null } | null;
+    audioMessage?: { contextInfo?: { mentionedJid?: string[] | null } | null } | null;
+  } | null;
+  return (
+    m?.extendedTextMessage?.contextInfo?.mentionedJid ??
+    m?.imageMessage?.contextInfo?.mentionedJid ??
+    m?.videoMessage?.contextInfo?.mentionedJid ??
+    m?.audioMessage?.contextInfo?.mentionedJid ??
+    []
+  );
 }
 
 function extractText(message: unknown): string | null {
