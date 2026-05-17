@@ -7,6 +7,7 @@ import { messagesRepo, type Message } from '../db/queries/messages';
 import { agentRunsRepo } from '../db/queries/agent-runs';
 import { toolCallsRepo } from '../db/queries/tool-calls';
 import { extractTrace } from '../agent/trace';
+import { requestContext, type SendImageFn } from '../utils/request-context';
 
 type CompiledGraph = {
   invoke: (
@@ -20,6 +21,9 @@ export type MessageRouterDeps = {
   config: AgentConfig;
   graph: CompiledGraph;
   send: (to: string, text: string) => Promise<void>;
+  /** Optional — sends a PNG image to a WhatsApp JID/phone.  Wired when a live
+   *  WhatsApp session is available; omitted in tests / non-WA transports. */
+  sendImage?: (to: string, imageBuffer: Buffer, caption?: string) => Promise<void>;
 };
 
 export type IncomingMessage = {
@@ -87,10 +91,22 @@ export async function handleIncomingMessage(
 
   const startedAt = Date.now();
   try {
+    // Build a per-request sendImage closure bound to the current phone so that
+    // tools can send images without knowing the recipient at tool-creation time.
+    // AsyncLocalStorage propagates this through the entire async call tree,
+    // making it safely available to tool implementations via getSendImage().
+    const boundSendImage: SendImageFn | undefined = deps.sendImage
+      ? (buf, caption) => deps.sendImage!(msg.customerPhone, buf, caption)
+      : undefined;
+
     const rawState = await Promise.race([
-      deps.graph.invoke(
-        { messages: history.map(toLangChainMessage) },
-        { configurable: { thread_id: conversation.id } },
+      requestContext.run(
+        { customerJid: msg.customerPhone, sendImage: boundSendImage },
+        () =>
+          deps.graph.invoke(
+            { messages: history.map(toLangChainMessage) },
+            { configurable: { thread_id: conversation.id } },
+          ),
       ),
       timeoutPromise<unknown>(deps.config.limits.per_message_timeout_ms),
     ]);

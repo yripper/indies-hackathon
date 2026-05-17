@@ -53,6 +53,7 @@ class DeepfakeDetector:
 
         indices = np.linspace(0, total - 1, min(FRAME_SAMPLES, total), dtype=int)
         laplacians, edges, face_diffs = [], [], []
+        frame_scores: list[float] = []
         prev_face = None
         faces_found = 0
 
@@ -68,13 +69,24 @@ class DeepfakeDetector:
             if face is not None:
                 faces_found += 1
                 face_resized = cv2.resize(face, (64, 64))
-                laplacians.append(self._laplacian_score(face_resized))
-                edges.append(self._edge_density(face_resized))
+                lap = self._laplacian_score(face_resized)
+                edg = self._edge_density(face_resized)
+                laplacians.append(lap)
+                edges.append(edg)
 
+                diff = 0.0
                 if prev_face is not None:
                     diff = float(np.mean(np.abs(face_resized.astype(float) - prev_face.astype(float))))
                     face_diffs.append(diff)
                 prev_face = face_resized
+
+                # Per-frame score: combine edge anomaly + laplacian signal.
+                # Normalised independently so each frame gets a 0-1 suspicion value.
+                frame_edge_score = min(abs(edg - 0.08) / 0.12, 1.0)
+                frame_lap_score = min(lap / 800.0, 1.0)
+                frame_diff_score = min(diff / 20.0, 1.0)
+                frame_score = 0.4 * frame_edge_score + 0.35 * frame_lap_score + 0.25 * frame_diff_score
+                frame_scores.append(round(min(frame_score, 1.0), 3))
 
         cap.release()
 
@@ -87,8 +99,13 @@ class DeepfakeDetector:
                 if ok:
                     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                     small = cv2.resize(gray, (128, 128))
-                    laplacians.append(self._laplacian_score(small))
-                    edges.append(self._edge_density(small))
+                    lap = self._laplacian_score(small)
+                    edg = self._edge_density(small)
+                    laplacians.append(lap)
+                    edges.append(edg)
+                    frame_edge_score = min(abs(edg - 0.08) / 0.12, 1.0)
+                    frame_lap_score = min(lap / 800.0, 1.0)
+                    frame_scores.append(round(min(0.5 * frame_edge_score + 0.5 * frame_lap_score, 1.0), 3))
             cap.release()
             if not laplacians:
                 raise ValueError("No frames could be analyzed")
@@ -118,4 +135,5 @@ class DeepfakeDetector:
             "faces_found": faces_found,
             "frames_analyzed": len(laplacians),
             "temporal_inconsistency": round(temporal_inconsistency, 3),
+            "frame_scores": frame_scores,
         }

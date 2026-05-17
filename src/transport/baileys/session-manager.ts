@@ -68,6 +68,14 @@ export class SessionManager {
     await this.socket.sendMessage(to, { text });
   }
 
+  async sendImage(to: string, imageBuffer: Buffer, caption?: string): Promise<void> {
+    if (!this.socket) throw new Error('No active WhatsApp session');
+    await this.socket.sendMessage(to, {
+      image: imageBuffer,
+      caption: caption ?? '',
+    });
+  }
+
   close(): void {
     if (this.socket) {
       this.socket.end(undefined);

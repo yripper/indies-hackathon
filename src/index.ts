@@ -43,6 +43,7 @@ async function main(): Promise<void> {
         config: agentConfig,
         graph,
         send: (to, body) => sender.send(to, body),
+        sendImage: (to, imageBuffer, caption) => sender.sendImage(to, imageBuffer, caption),
       },
       { customerPhone, customerName, text },
     );
