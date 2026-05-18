@@ -37,7 +37,7 @@ export const detectDeepfakeVideoTool = tool(
       faces_found: number;
       frames_analyzed: number;
       temporal_inconsistency: number;
-      detail: string;
+      detail?: string;
     };
 
     const pct = Math.round(data.confidence * 100);
@@ -45,7 +45,8 @@ export const detectDeepfakeVideoTool = tool(
 
     return (
       `${data.verdict} (${pct}% de confianza). ` +
-      `${data.detail}. ` +
+      (data.detail ? `${data.detail}. ` : '') +
+      `Frames analizados: ${data.frames_analyzed}, rostros detectados: ${data.faces_found}. ` +
       `Inconsistencia temporal entre frames: ${inconsistency}%.`
     );
   },

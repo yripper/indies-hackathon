@@ -114,7 +114,7 @@ interface AnalysisResponse {
   faces_found: number;
   frames_analyzed: number;
   temporal_inconsistency: number;
-  detail: string;
+  detail?: string;
 }
 
 export type SendImageFn = (imageBuffer: Buffer, caption?: string) => Promise<void>;
@@ -213,7 +213,8 @@ export function createScanUrlDeepfakeTool(sendImage?: SendImageFn) {
 
         const resultText =
           `${data.verdict} (${pct}% de confianza). ` +
-          `${data.detail}. ` +
+          (data.detail ? `${data.detail}. ` : '') +
+          `Frames analizados: ${data.frames_analyzed}, rostros detectados: ${data.faces_found}. ` +
           `Inconsistencia temporal entre frames: ${inconsistency}%.`;
 
         // 8. Authenticity certificate (only for REAL verdict).
