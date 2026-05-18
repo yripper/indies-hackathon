@@ -174,7 +174,7 @@ export const analyzeImageDeepfakeTool = tool(
 
     const sendProgress = getProgressSender();
     if (sendProgress) {
-      sendProgress('🔍 Analizando la imagen... dame unos segundos.').catch(
+      sendProgress('🔍 Estoy analizando la imagen con mis detectores... dame unos segundos.').catch(
         (err) => log.warn({ err }, 'progress send failed'),
       );
     }

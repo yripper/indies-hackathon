@@ -76,7 +76,7 @@ export const analyzeAudioDeepfakeTool = tool(
     const sendProgress = getProgressSender();
     if (sendProgress) {
       log.info('sending progress message');
-      sendProgress('🔍 Analizando el audio... dame unos segundos.').catch(
+      sendProgress('🔍 Estoy analizando el audio con mis detectores... dame unos segundos.').catch(
         (err) => log.warn({ err }, 'progress send failed'),
       );
     }
