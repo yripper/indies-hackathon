@@ -1,4 +1,4 @@
-# Veritas Landing Page
+# Vero Landing Page
 
 Static landing page for the hackathon demo.
 

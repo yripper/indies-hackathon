@@ -14,9 +14,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Veritas · audio defense for families",
+  title: "Vero · defensa ciudadana de WhatsApp contra fraude por IA",
   description:
-    "Veritas dashboard — voice-clone fraud detection for Chilean families. hack@latam 2026 DEF/ACC track.",
+    "Dashboard Vero — verificación de audios, imágenes, videos y enlaces sospechosos en WhatsApp. Para cualquier persona. hack@latam 2026 DEF/ACC track.",
 };
 
 export default function RootLayout({

@@ -28,7 +28,7 @@ export const getUserStatsTool = tool(
 
     if (!conversation) {
       return (
-        '📊 *Tus estadísticas Veritas*\n\n' +
+        '📊 *Tus estadísticas Vero*\n\n' +
         'Aún no tienes análisis registrados. ¡Envíame un audio, imagen o video sospechoso para empezar!'
       );
     }
@@ -47,7 +47,7 @@ export const getUserStatsTool = tool(
 
     if (totalAnalyses === 0) {
       return (
-        '📊 *Tus estadísticas Veritas*\n\n' +
+        '📊 *Tus estadísticas Vero*\n\n' +
         'Aún no tienes análisis registrados. ¡Envíame un audio, imagen o video sospechoso para empezar!'
       );
     }
@@ -57,7 +57,7 @@ export const getUserStatsTool = tool(
     const totalReal = audioStats.tierCounts.real + imageStats.tierCounts.real;
 
     const lines: string[] = [
-      '📊 *Tus estadísticas en Veritas*',
+      '📊 *Tus estadísticas en Vero*',
       '',
       `*Total de análisis:* ${totalAnalyses}`,
       '',
@@ -105,7 +105,7 @@ export const getUserStatsTool = tool(
           )
         : audioStats.firstAnalysisAt ?? imageStats.firstAnalysisAt;
 
-    lines.push('', `_Usando Veritas desde: ${formatDate(firstSeen)}_`);
+    lines.push('', `_Usando Vero desde: ${formatDate(firstSeen)}_`);
 
     return lines.join('\n');
   },

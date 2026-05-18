@@ -1,6 +1,6 @@
-# :shield: VERITAS
+# :shield: VERO
 
-> **Plataforma anti-desinformación para WhatsApp** — detecta deepfakes en audio, imagen y video, verifica noticias, y protege grupos automáticamente.
+> **Defensa ciudadana de WhatsApp contra fraude por IA** — si algo te hace dudar, lo reenvías a Vero. Verifica audios, imágenes, videos y enlaces sospechosos en segundos, y te entrega un semáforo claro con los pasos concretos para actuar. Sin app, sin registro, para cualquier persona.
 
 [![Node 22](https://img.shields.io/badge/node-22-brightgreen?logo=node.js)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)](https://www.typescriptlang.org/)
@@ -14,49 +14,61 @@ Built for **hack@latam 2026**.
 
 ## How it works
 
+Funciona para cualquier persona que reciba contenido sospechoso por WhatsApp. Vero solo procesa lo que se le reenvía deliberadamente. En grupos, solo responde cuando se la menciona con `@`.
+
 ```
-User (WhatsApp)
-     │
-     ▼
- Baileys Transport
-     │
-     ▼
- LangGraph Agent ──────────────────────────────────────────────────┐
-     │                                                             │
-     ├── Media Detection                                           │
-     │       ├── Audio  → Reality Defender SDK                    │
-     │       ├── Image  → Reality Defender + Sightengine           │
-     │       └── Video  → HF Space (OpenCV heuristics + ML)        │
-     │                                                             │
-     ├── Intelligence                                              │
-     │       ├── Fact-Check → Google Fact Check API + DuckDuckGo  │
-     │       └── URL Scan   → YouTube / TikTok / Twitter / IG     │
-     │                                                             │
-     └── Output ◄────────────────────────────────────────────────┘
-             ├── Verdict + confidence score
-             ├── Frame heatmap PNG (video)
-             └── Authenticity certificate PNG (verified content)
+  1. Recibes          2. Reenvías           3. Vero verifica          4. Recibes
+  algo dudoso   ───▶  a Vero por      ───▶  en segundos        ───▶   respuesta
+  (audio /            WhatsApp              (autenticidad,             (semáforo +
+  imagen /                                  contenido y                 pasos
+  video / URL)                              hechos)                     concretos)
+                                            │
+                                            ▼
+                                    Baileys Transport
+                                            │
+                                            ▼
+                                    LangGraph Agent
+                                            │
+        ┌───────────────────────────────────┤
+        │                                   │
+        ├── Triple verificación (audio)     │
+        │       1. Reality Defender ensemble  ── ¿voz sintética?
+        │       2. Whisper transcribe         ── ¿qué dijo?
+        │       3. Google Fact Check          ── ¿la afirmación es cierta?
+        │
+        ├── Imagen   → Reality Defender + Sightengine (identifica generador)
+        ├── Video    → HF Space (OpenCV temporal + heatmap PNG)
+        └── URL      → yt-dlp (YouTube / TikTok / X / IG) → pipeline de video
+
+  Respuesta al usuario:
+    🟩 / 🟨 / 🟥 + % de confianza
+    + pasos concretos para actuar
+    + canales oficiales (1212 / 134 / comisariavirtual.cl) en veredictos FALSO/INCIERTO
+    + heatmap PNG (si es video)
+    + certificado de autenticidad (si es real)
 ```
 
 ---
 
 ## Features
 
-| Media Detection | Intelligence & Safety |
+| Detección de medios | Comprensión, fact-check y seguridad |
 |---|---|
-| :microphone: **Audio deepfake** — Reality Defender SDK scores every voice message | :mag: **Fact-checking** — Google Fact Check API + DuckDuckGo, returns verdict with sources |
-| :frame_with_picture: **Image deepfake** — dual detector (Reality Defender + Sightengine) with composite scoring | :link: **URL scanning** — paste a YouTube/TikTok/Twitter/Instagram link, bot downloads and analyzes |
-| :movie_camera: **Video deepfake** — temporal inconsistency, Laplacian variance, edge density via OpenCV | :rotating_light: **Forwarded message detection** — warns about viral / highly-forwarded content |
-| :chart_with_upwards_trend: **Frame heatmap** — visual PNG showing per-frame suspicion scores (green→red) | :robot: **Group auto-monitoring** — silently watches group chats, alerts only on suspicious content |
-| :white_check_mark: **Authenticity certificate** — SHA-256 badge PNG for verified real content | :shield: **Rate limiting** — per-JID sliding window (5/hr · 15/day) |
+| :microphone: **Audio deepfake** — Reality Defender ensemble (10 sub-modelos) en cada nota de voz reenviada | :memo: **Transcripción Whisper** — cada audio se transcribe automáticamente para alimentar el fact-check |
+| :frame_with_picture: **Imagen deepfake** — Reality Defender + Sightengine en paralelo, identifica generador (DALL-E, Flux, Midjourney, SD) | :mag: **Fact-checking encadenado** — Google Fact Check API + DuckDuckGo, verdict con fuentes primarias |
+| :movie_camera: **Video deepfake** — inconsistencia temporal, varianza Laplacian y densidad de bordes vía OpenCV en HF Spaces | :link: **Escaneo de URLs** — YouTube, TikTok, Twitter/X e Instagram; Vero descarga con yt-dlp y reusa el pipeline |
+| :chart_with_upwards_trend: **Frame heatmap** — PNG verde→rojo por frame analizado | :lock: **Solo procesa lo reenviado** — Vero no escucha conversaciones, solo lo que se le manda deliberadamente |
+| :white_check_mark: **Certificado de autenticidad** — PNG con hash SHA-256 + timestamp para contenido verificado como real | :busts_in_silhouette: **En grupos, solo con @mención** — Vero no responde en silencio; solo cuando alguien la nombra explícitamente |
+| :traffic_light: **Semáforo de confianza** — 🟩 real / 🟨 incierto / 🟥 falso con % y razones | :telephone_receiver: **Canales oficiales en cada veredicto FALSO/INCIERTO** — 1212, 134, comisariavirtual.cl |
+| :bar_chart: **Dashboard público** — KPIs y tendencias agregadas, sin login (`/v1/public/stats`) | :shield: **Rate limiting** — ventana deslizante por JID (5/hora · 15/día · 10/hora grupos · 3/5min URL scan) |
 
 ---
 
-## Three steps
+## Cómo se usa
 
-1. **Send** — drop any media or paste a URL into WhatsApp (DM or group)
-2. **Analyze** — Veritas routes it through the appropriate detection pipeline, usually in under 10 s
-3. **Verdict** — you get a plain-language result, confidence score, and (for video) a frame heatmap or authenticity certificate
+1. **Recibes** un audio, imagen, video o enlace que te hace dudar
+2. **Lo reenvías a Vero** por WhatsApp (chat directo o mencionándola con `@` en un grupo)
+3. **Recibes la respuesta en segundos**: semáforo 🟩 / 🟨 / 🟥 con % de confianza, motivos del veredicto, y los canales oficiales para actuar si ya hubo daño (1212, 134, comisariavirtual.cl)
 
 ---
 
@@ -170,6 +182,6 @@ curl -X POST http://localhost:3000/v1/wa/connect | jq
 
 ## Team
 
-Built at **hack@latam 2026** by the Veritas team.
+Built at **hack@latam 2026** by the Vero team.
 
 GitHub: [yripper/indies-hackathon](https://github.com/yripper/indies-hackathon)

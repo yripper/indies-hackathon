@@ -46,7 +46,7 @@ export default function SubscribePage() {
             <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <span className="text-xl font-bold text-white">V</span>
             </div>
-            <span className="text-xl font-bold text-[#f9fafb] tracking-tight">VERITAS</span>
+            <span className="text-xl font-bold text-[#f9fafb] tracking-tight">VERO</span>
           </Link>
           <nav className="flex gap-6 text-sm font-medium">
             <Link href="/public/trends" className="text-[#9ca3af] hover:text-[#f9fafb] transition">Tendencias</Link>
@@ -77,7 +77,7 @@ export default function SubscribePage() {
         ) : (
           <>
             <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-[#f9fafb] mb-2">Suscríbete a VERITAS</h1>
+              <h1 className="text-3xl font-bold text-[#f9fafb] mb-2">Suscríbete a VERO</h1>
               <p className="text-[#9ca3af]">
                 Recibe alertas sobre nuevas campañas de desinformación detectadas en tiempo real.
               </p>
@@ -153,7 +153,7 @@ export default function SubscribePage() {
             </form>
 
             <p className="text-center text-xs text-[#6b7280] mt-6">
-              Al suscribirte aceptas recibir emails de VERITAS. Puedes darte de baja en cualquier momento.
+              Al suscribirte aceptas recibir emails de VERO. Puedes darte de baja en cualquier momento.
               No compartimos tu email con terceros.
             </p>
           </>

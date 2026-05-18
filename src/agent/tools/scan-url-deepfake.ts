@@ -227,7 +227,7 @@ export function createScanUrlDeepfakeTool(sendImage?: SendImageFn) {
             verdict: data.verdict,
           });
           if (cert) {
-            await effectiveSendImage(cert, '🛡️ Veritas Authenticity Certificate');
+            await effectiveSendImage(cert, '🛡️ Vero · Certificado de Autenticidad');
           }
         }
 

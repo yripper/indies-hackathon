@@ -85,7 +85,7 @@ const MOCK_OVERVIEW: OverviewResponse = {
       score: 0.08,
       duration_sec: null,
       bytes: 245000,
-      from_name: "Abuela Marta",
+      from_name: "Usuario WhatsApp",
       mimetype: "image/jpeg",
       source: "direct",
       detector: "clip-interrogator+hive",

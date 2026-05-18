@@ -49,7 +49,7 @@ function mediaIcon(mediaType: 'audio' | 'image' | 'video'): string {
   return icons[mediaType];
 }
 
-// ─── shield shape (Veritas logo) ─────────────────────────────────────────────
+// ─── shield shape (Vero logo) ────────────────────────────────────────────────
 function shield(cx: number, cy: number, scale: number = 1): string {
   const w = 70 * scale;
   const h = 80 * scale;
@@ -126,7 +126,7 @@ export async function generateCertificate(input: CertificateInput): Promise<Buff
   <!-- Shield logo area -->
   ${shield(54, 56, 0.65)}
   <text x="54" y="51" text-anchor="middle" font-family="Arial Black, Arial, sans-serif"
-        font-size="11" font-weight="900" fill="#00d4aa" letter-spacing="2">VERITAS</text>
+        font-size="13" font-weight="900" fill="#00d4aa" letter-spacing="3">VERO</text>
 
   <!-- Main header -->
   <text x="50%" y="46" text-anchor="middle" font-family="Arial Black, Arial, sans-serif"
@@ -189,7 +189,7 @@ export async function generateCertificate(input: CertificateInput): Promise<Buff
   <!-- Footer text -->
   <text x="50%" y="${H - 16}" text-anchor="middle" font-family="Arial, sans-serif"
         font-size="11" fill="#8888aa" letter-spacing="1">
-    Verified by Veritas Deepfake Detection • veritas.ai
+    Verificado por Vero • wa.me/56929775841
   </text>
 </svg>`;
 

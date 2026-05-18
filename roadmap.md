@@ -1,4 +1,4 @@
-# Roadmap — Veritas Deepfake Detection
+# Roadmap — Vero Deepfake Detection
 
 Estado actual del proyecto al 2026-05-16.
 

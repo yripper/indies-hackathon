@@ -38,7 +38,7 @@ export async function traceImageSource(
     const response = await fetch(imageUrl, {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'VERITAS-SourceTracer/1.0',
+        'User-Agent': 'VERO-SourceTracer/1.0',
       },
     });
 

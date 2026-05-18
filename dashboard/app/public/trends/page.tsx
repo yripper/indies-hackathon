@@ -63,7 +63,7 @@ export default function TrendsPage() {
             <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <span className="text-xl font-bold text-white">V</span>
             </div>
-            <span className="text-xl font-bold text-[#f9fafb] tracking-tight">VERITAS</span>
+            <span className="text-xl font-bold text-[#f9fafb] tracking-tight">VERO</span>
           </Link>
           <nav className="flex gap-6 text-sm font-medium">
             <Link href="/public/trends" className="text-emerald-400">Tendencias</Link>

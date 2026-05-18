@@ -11,7 +11,7 @@ export default function PressPage() {
             <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <span className="text-xl font-bold text-white">V</span>
             </div>
-            <span className="text-xl font-bold text-[#f9fafb] tracking-tight">VERITAS</span>
+            <span className="text-xl font-bold text-[#f9fafb] tracking-tight">VERO</span>
           </Link>
           <nav className="flex gap-6 text-sm font-medium">
             <Link href="/public/trends" className="text-[#9ca3af] hover:text-[#f9fafb] transition">Tendencias</Link>
@@ -26,7 +26,7 @@ export default function PressPage() {
         <div className="mb-12 text-center">
           <h1 className="text-4xl font-bold text-[#f9fafb] mb-4">Press Kit</h1>
           <p className="text-[#9ca3af] max-w-xl mx-auto">
-            Recursos para medios de comunicación que quieran usar VERITAS en sus publicaciones.
+            Recursos para medios de comunicación que quieran usar VERO en sus publicaciones.
           </p>
         </div>
 
@@ -49,7 +49,7 @@ export default function PressPage() {
         <section className="mb-12">
           <h2 className="text-2xl font-semibold text-[#f9fafb] mb-6">Badges de Verificación</h2>
           <p className="text-[#9ca3af] mb-6">
-            Usa estos badges para indicar que tu contenido ha sido verificado o analizado por VERITAS.
+            Usa estos badges para indicar que tu contenido ha sido verificado o analizado por VERO.
           </p>
 
           <div className="space-y-4">
@@ -60,12 +60,12 @@ export default function PressPage() {
                 </div>
                 <div>
                   <div className="font-semibold text-[#f9fafb] text-lg">Verificado Real</div>
-                  <div className="text-sm text-[#9ca3af]">Para contenido auténtico verificado por VERITAS</div>
+                  <div className="text-sm text-[#9ca3af]">Para contenido auténtico verificado por VERO</div>
                 </div>
               </div>
               <div className="bg-[#030712] rounded-xl p-4 font-mono text-xs text-[#9ca3af] overflow-x-auto">
-                {`<a href="https://veritas.pub/case/{id}" target="_blank" rel="noopener">
-  <img src="https://veritas.pub/badge/real.png" alt="Verificado por VERITAS" width="120" height="40" />
+                {`<a href="https://vero.pub/case/{id}" target="_blank" rel="noopener">
+  <img src="https://vero.pub/badge/real.png" alt="Verificado por VERO" width="120" height="40" />
 </a>`}
               </div>
             </div>
@@ -81,8 +81,8 @@ export default function PressPage() {
                 </div>
               </div>
               <div className="bg-[#030712] rounded-xl p-4 font-mono text-xs text-[#9ca3af] overflow-x-auto">
-                {`<a href="https://veritas.pub/case/{id}" target="_blank" rel="noopener">
-  <img src="https://veritas.pub/badge/fake.png" alt="Detectado por VERITAS" width="120" height="40" />
+                {`<a href="https://vero.pub/case/{id}" target="_blank" rel="noopener">
+  <img src="https://vero.pub/badge/fake.png" alt="Detectado por VERO" width="120" height="40" />
 </a>`}
               </div>
             </div>
@@ -98,8 +98,8 @@ export default function PressPage() {
                 </div>
               </div>
               <div className="bg-[#030712] rounded-xl p-4 font-mono text-xs text-[#9ca3af] overflow-x-auto">
-                {`<a href="https://veritas.pub/case/{id}" target="_blank" rel="noopener">
-  <img src="https://veritas.pub/badge/uncertain.png" alt="Pendiente de verificar" width="120" height="40" />
+                {`<a href="https://vero.pub/case/{id}" target="_blank" rel="noopener">
+  <img src="https://vero.pub/badge/uncertain.png" alt="Pendiente de verificar" width="120" height="40" />
 </a>`}
               </div>
             </div>
@@ -120,17 +120,17 @@ export default function PressPage() {
             </div>
             <div className="p-6">
               <pre className="text-sm text-[#9ca3af] overflow-x-auto font-mono leading-relaxed">{`# Autenticación
-GET https://api.veritas.pub/v1/public/stats
+GET https://api.vero.pub/v1/public/stats
 Authorization: Bearer YOUR_API_KEY
 
 # Obtener casos verificados
-GET https://api.veritas.pub/v1/public/cases?tier=fake&limit=50
+GET https://api.vero.pub/v1/public/cases?tier=fake&limit=50
 
 # Ver tendencias actuales
-GET https://api.veritas.pub/v1/public/trends
+GET https://api.vero.pub/v1/public/trends
 
 # Verificar URL específica
-POST https://api.veritas.pub/v1/verify
+POST https://api.vero.pub/v1/verify
 Content-Type: application/json
 {"url": "https://example.com/news"}`}</pre>
             </div>
@@ -139,7 +139,7 @@ Content-Type: application/json
           <div className="mt-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
             <p className="text-sm text-emerald-300">
               <strong>Rate Limit:</strong> 100 requests/minuto para usuarios autenticados.
-              ¿Necesitas más? Contacta <a href="mailto:press@veritas.pub" className="underline">press@veritas.pub</a>
+              ¿Necesitas más? Escríbenos por <a href="https://wa.me/56929775841" target="_blank" rel="noopener" className="underline">WhatsApp</a>.
             </p>
           </div>
         </section>
@@ -168,10 +168,12 @@ Content-Type: application/json
             Para entrevistas, datos estadísticos, o colaboración con medios.
           </p>
           <a
-            href="mailto:press@veritas.pub"
+            href="https://wa.me/56929775841"
+            target="_blank"
+            rel="noopener"
             className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition"
           >
-            press@veritas.pub
+            Escríbenos por WhatsApp
           </a>
         </section>
       </main>

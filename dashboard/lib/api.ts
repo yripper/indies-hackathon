@@ -1,4 +1,4 @@
-// Thin typed client for the Veritas analytics API. Runs server-side from
+// Thin typed client for the Vero analytics API. Runs server-side from
 // Next.js RSCs — no browser cache or CORS concerns at fetch time. We override
 // Next's default fetch caching with `cache: 'no-store'` so the dashboard
 // always reads fresh DB state during the demo.

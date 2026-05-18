@@ -20,10 +20,10 @@ export function Sidebar() {
         </span>
         <div>
           <div className="font-mono text-sm font-bold tracking-wider text-[#f9fafb]">
-            VERITAS
+            VERO
           </div>
           <div className="text-[10px] uppercase tracking-widest text-[#6b7280]">
-            Audio defense
+            Anti-fraude por IA
           </div>
         </div>
       </Link>

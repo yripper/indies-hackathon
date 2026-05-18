@@ -102,7 +102,7 @@ const MOCK_CONVERSATION: ConversationDetailResponse = {
       bytes: 245000,
       mimetype: "image/jpeg",
       source: "direct",
-      from_name: "Abuela Marta",
+      from_name: "Usuario WhatsApp",
       detector: "clip-interrogator+hive",
       model_scores: [
         { name: "hive-moderation", status: "completed", score: 0.05 },
