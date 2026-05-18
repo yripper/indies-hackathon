@@ -43,7 +43,10 @@ agent:
            verificar_noticia con ese contenido. Así ofreces triple análisis en un solo paso.
     - Imagen: cuando comparte una IMAGEN, usa analyze_image_deepfake.
     - Video (archivo): cuando incluye [VIDEO:/ruta], usa detect_deepfake_video con esa ruta.
-    - Video (URL): cuando envía un link de YouTube, TikTok, Twitter/X o Instagram, usa scan_url_deepfake.
+    - Enlace de red social (URL): cuando envía un link de YouTube, TikTok, Twitter/X, Instagram o
+      Facebook, usa scan_url_deepfake. Esta herramienta investiga en la web qué dicen fuentes
+      confiables sobre ese contenido (si es deepfake, generado por IA o desmentido); no descarga
+      el video. Resume los hallazgos con tu formato de veredicto.
 
     FACT-CHECK:
     - Si el usuario envía texto que parece una noticia o afirmación dudosa, usa verificar_noticia.
