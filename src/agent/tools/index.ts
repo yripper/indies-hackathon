@@ -2,18 +2,9 @@ import type { StructuredToolInterface } from '@langchain/core/tools';
 import { echoTool } from './echo';
 import { getCurrentTimeTool } from './get-current-time';
 import { calculatorTool } from './calculator';
-import {
-  createDetectDeepfakeVideoTool,
-  detectDeepfakeVideoTool,
-} from './detect-deepfake-video';
-import {
-  createAnalyzeAudioDeepfakeTool,
-  analyzeAudioDeepfakeTool,
-} from './analyze-audio-deepfake';
-import {
-  createAnalyzeImageDeepfakeTool,
-  analyzeImageDeepfakeTool,
-} from './analyze-image-deepfake';
+import { detectDeepfakeVideoTool } from './detect-deepfake-video';
+import { analyzeAudioDeepfakeTool } from './analyze-audio-deepfake';
+import { analyzeImageDeepfakeTool } from './analyze-image-deepfake';
 import {
   createScanUrlDeepfakeTool,
   scanUrlDeepfakeTool,
@@ -39,15 +30,9 @@ function buildRegistry(
     echo: echoTool,
     get_current_time: getCurrentTimeTool,
     calculator: calculatorTool,
-    detect_deepfake_video: sendImage
-      ? createDetectDeepfakeVideoTool(sendImage)
-      : detectDeepfakeVideoTool,
-    analyze_audio_deepfake: sendImage
-      ? createAnalyzeAudioDeepfakeTool(sendImage)
-      : analyzeAudioDeepfakeTool,
-    analyze_image_deepfake: sendImage
-      ? createAnalyzeImageDeepfakeTool(sendImage)
-      : analyzeImageDeepfakeTool,
+    detect_deepfake_video: detectDeepfakeVideoTool,
+    analyze_audio_deepfake: analyzeAudioDeepfakeTool,
+    analyze_image_deepfake: analyzeImageDeepfakeTool,
     scan_url_deepfake: sendImage
       ? createScanUrlDeepfakeTool(sendImage)
       : scanUrlDeepfakeTool,
