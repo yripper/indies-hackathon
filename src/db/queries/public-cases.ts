@@ -96,7 +96,7 @@ export const publicCasesRepo = {
   },
 
   async countByCountry(db: Database, limit = 20): Promise<{ country: string; count: number }[]> {
-    return db
+    const rows = await db
       .select({
         country: publicCases.country,
         count: sql<number>`count(*)::int`,
@@ -106,6 +106,7 @@ export const publicCasesRepo = {
       .groupBy(publicCases.country)
       .orderBy(sql`count(*) desc`)
       .limit(limit);
+    return rows as { country: string; count: number }[];
   },
 
   async topKeywords(db: Database, limit = 20): Promise<{ keyword: string; count: number }[]> {

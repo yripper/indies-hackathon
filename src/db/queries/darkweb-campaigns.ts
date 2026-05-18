@@ -1,4 +1,4 @@
-import { desc, eq, gte, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, sql } from 'drizzle-orm';
 import type { Database } from '../connection';
 import { darkwebCampaigns } from '../schema';
 
@@ -73,7 +73,7 @@ export const darkwebCampaignsRepo = {
   },
 
   async countByCountry(db: Database, limit = 20): Promise<{ country: string; count: number }[]> {
-    return db
+    const rows = await db
       .select({
         country: darkwebCampaigns.country,
         count: sql<number>`count(*)::int`,
@@ -83,6 +83,7 @@ export const darkwebCampaignsRepo = {
       .groupBy(darkwebCampaigns.country)
       .orderBy(sql`count(*) desc`)
       .limit(limit);
+    return rows as { country: string; count: number }[];
   },
 
   async topTopics(db: Database, limit = 20): Promise<{ topic: string; count: number }[]> {
@@ -140,7 +141,7 @@ export const darkwebCampaignsRepo = {
 
     return {
       total: totalRows[0]?.n ?? 0,
-      byCountry: countryRows,
+      byCountry: countryRows as { country: string; count: number }[],
       byTopic: [],
       avgConfidence: confidenceRows[0]?.avg != null ? Number(confidenceRows[0].avg) : null,
     };
@@ -169,6 +170,14 @@ export const darkwebCampaignsRepo = {
       .where(sql`${darkwebCampaigns.latitude} IS NOT NULL AND ${darkwebCampaigns.longitude} IS NOT NULL`)
       .orderBy(desc(darkwebCampaigns.detectedAt))
       .limit(limit);
-    return rows;
+    return rows as {
+      latitude: number | null;
+      longitude: number | null;
+      country: string | null;
+      title: string;
+      topics: string[];
+      confidence: number;
+      detectedAt: Date;
+    }[];
   },
 };

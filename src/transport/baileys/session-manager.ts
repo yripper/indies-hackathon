@@ -1,6 +1,8 @@
 import makeWASocket, {
   DisconnectReason,
+  downloadMediaMessage,
   type WASocket,
+  type WAMessage,
   type BaileysEventMap,
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
@@ -74,6 +76,20 @@ export class SessionManager {
       image: imageBuffer,
       caption: caption ?? '',
     });
+  }
+
+  getOwnJids(): { phoneJid: string; lidJid: string | null } {
+    const userId = this.socket?.user?.id ?? '';
+    const phoneJid = userId.split(':')[0] + '@s.whatsapp.net';
+    const lidRaw = this.socket?.user?.lid;
+    const lidJid = lidRaw ? lidRaw.split(':')[0]?.split('@')[0] + '@lid' : null;
+    return { phoneJid, lidJid };
+  }
+
+  async downloadMedia(msg: WAMessage): Promise<Buffer> {
+    if (!this.socket) throw new Error('No active WhatsApp session');
+    const buffer = await downloadMediaMessage(msg, 'buffer', {});
+    return buffer as Buffer;
   }
 
   close(): void {
