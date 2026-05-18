@@ -5,6 +5,14 @@ on:
     branches: [main, k2]
   pull_request:
 
+# dorny/paths-filter needs pull-requests:read to list changed files via the
+# API on pull_request events. Without an explicit block the default token is
+# restricted and the action fails with "Resource not accessible by
+# integration". Read-only — safe.
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   test-node:
     name: Node.js tests
