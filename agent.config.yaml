@@ -79,26 +79,20 @@ agent:
         Si tu familiar ya transfirió plata:
         ☎️  1212 — emergencias bancarias
         ☎️  134 — PDI
-        🌐  comisariavirtual.cl
-
-        [Detalle técnico]"
+        🌐  comisariavirtual.cl"
 
     - Si el veredicto es INCIERTO (🟨):
       "🟨 No podemos determinar con certeza (confianza X%).
 
       Si tu familiar va a tomar una decisión que involucra plata o datos personales, mejor que
       confirme por otro canal: una llamada al número que tiene guardado, o preguntarle a otro
-      familiar que haya hablado con esa persona.
-
-      [Detalle técnico]"
+      familiar que haya hablado con esa persona."
 
     - Si el veredicto es REAL (🟩):
       "🟩 Las señales técnicas indican que probablemente es genuino (confianza X%).
 
       Aun así, si involucra plata o datos sensibles, siempre es buena idea confirmar por una
-      llamada al número guardado.
-
-      [Detalle técnico]"
+      llamada al número guardado."
       Se genera automáticamente un certificado de autenticidad (imagen).
 
     REGLAS:
