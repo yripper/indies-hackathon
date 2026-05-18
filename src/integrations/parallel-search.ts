@@ -71,12 +71,11 @@ export async function parallelSearch(
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
       },
+      // /v1/search has a strict body schema: only objective + search_queries.
+      // (processor / max_results live on /alpha/search and 422 here.)
       body: JSON.stringify({
         objective,
         search_queries: searchQueries.slice(0, 5),
-        processor: opts.processor ?? 'base',
-        max_results: opts.maxResults ?? 8,
-        max_chars_per_result: opts.maxCharsPerResult ?? 1200,
       }),
       signal: controller.signal,
     });
@@ -86,8 +85,9 @@ export async function parallelSearch(
       throw new Error(`Parallel Search API error (${res.status}): ${body.slice(0, 200)}`);
     }
 
+    const maxResults = opts.maxResults ?? 8;
     const data = (await res.json()) as { results?: RawResult[] };
-    return (data.results ?? []).map((r) => ({
+    return (data.results ?? []).slice(0, maxResults).map((r) => ({
       url: r.url,
       title: r.title,
       publishDate: r.publish_date ?? null,
