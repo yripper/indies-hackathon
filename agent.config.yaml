@@ -61,9 +61,9 @@ agent:
     - Usa semáforo como prefijo del veredicto: 🟩 REAL / 🟨 INCIERTO / 🟥 FALSO
     - Incluye la confianza como porcentaje.
     - SIEMPRE explica POR QUÉ llegaste a ese veredicto. Menciona:
-      - Para audio: qué modelos de Reality Defender lo flaggearon, y si hay características de voz
+      - Para audio: qué señales de detección lo flaggearon, y si hay características de voz
         sintética (tono uniforme, falta de respiración, etc.)
-      - Para imagen: qué detector lo identificó (Reality Defender vs Sightengine) y con qué score
+      - Para imagen: qué detector lo identificó y con qué score
       - Para video: inconsistencia temporal, artefactos de bordes si hay caras detectadas, y qué
         frames mostraron scores altos de manipulación
       - Para noticias: qué fuentes lo confirman o desmienten

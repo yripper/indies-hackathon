@@ -114,16 +114,16 @@ function formatVerdict(
   if (rd) {
     const rdEnsemble = Math.round(rd.score * 100);
     const rdTop = rd.models.reduce((max, m) => (m.score != null && m.score > max ? m.score : max), 0);
-    breakdownLines.push(`• Reality Defender (ensemble): ${rdEnsemble}% — máximo sub-modelo: ${Math.round(rdTop * 100)}%`);
+    breakdownLines.push(`• Detector primario (ensemble): ${rdEnsemble}% — máximo sub-modelo: ${Math.round(rdTop * 100)}%`);
   } else if (rdError) {
-    breakdownLines.push(`• Reality Defender: no disponible (${rdError.includes('quota') ? 'cuota agotada' : 'error'})`);
+    breakdownLines.push(`• Detector primario: no disponible (${rdError.includes('quota') ? 'cuota agotada' : 'error'})`);
   }
   if (se) {
     const sePct = Math.round(se.aiGenerated * 100);
     const genHint = generator ? ` (firma de ${generator})` : '';
-    breakdownLines.push(`• Sightengine (genai): ${sePct}%${genHint}`);
+    breakdownLines.push(`• Detector secundario (genai): ${sePct}%${genHint}`);
     if (se.deepfake != null) {
-      breakdownLines.push(`• Sightengine (deepfake/face-swap): ${Math.round(se.deepfake * 100)}%`);
+      breakdownLines.push(`• Detector secundario (deepfake/face-swap): ${Math.round(se.deepfake * 100)}%`);
     }
   }
   const breakdown = breakdownLines.length > 0 ? `\n\nDetalle técnico:\n${breakdownLines.join('\n')}` : '';
@@ -136,7 +136,7 @@ function formatVerdict(
     ].join('\n\n') + breakdown;
   }
   if (tier === 'uncertain') {
-    const genNote = generator ? ` Sightengine ve una firma compatible con ${generator}, pero sin certeza.` : '';
+    const genNote = generator ? ` El análisis ve una firma compatible con ${generator}, pero sin certeza.` : '';
     return [
       `RESULTADO: los detectores no se ponen de acuerdo (señal combinada ${pct}%, zona gris).${genNote}`,
       `Recomendación: no asumas que es real ni que es falsa. Verificá el contenido por otro canal — llamá directamente a la persona o pedile que te mande otra imagen o videollamada.`,
@@ -174,7 +174,7 @@ export const analyzeImageDeepfakeTool = tool(
 
     const sendProgress = getProgressSender();
     if (sendProgress) {
-      sendProgress('🔍 Analizando imagen con Reality Defender + Sightengine... dame unos segundos.').catch(
+      sendProgress('🔍 Analizando la imagen... dame unos segundos.').catch(
         (err) => log.warn({ err }, 'progress send failed'),
       );
     }
@@ -222,7 +222,7 @@ export const analyzeImageDeepfakeTool = tool(
   {
     name: 'analyze_image_deepfake',
     description:
-      'Analyzes the image that the user most recently shared in this conversation to determine if it is AI-generated (deepfake) or authentic. Runs Reality Defender + Sightengine in parallel and returns a composite verdict. Only call this AFTER the user has explicitly confirmed they want the analysis or when the user sends an image with an explicit question. Returns a Spanish-language verdict.',
+      'Analyzes the image that the user most recently shared in this conversation to determine if it is AI-generated (deepfake) or authentic. Runs multiple AI-image detectors in parallel and returns a composite verdict. Only call this AFTER the user has explicitly confirmed they want the analysis or when the user sends an image with an explicit question. Returns a Spanish-language verdict.',
     schema: z.object({}),
   },
 );

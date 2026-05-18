@@ -76,7 +76,7 @@ export const analyzeAudioDeepfakeTool = tool(
     const sendProgress = getProgressSender();
     if (sendProgress) {
       log.info('sending progress message');
-      sendProgress('🔍 Analizando audio con Reality Defender... dame unos segundos.').catch(
+      sendProgress('🔍 Analizando el audio... dame unos segundos.').catch(
         (err) => log.warn({ err }, 'progress send failed'),
       );
     }
@@ -126,7 +126,7 @@ export const analyzeAudioDeepfakeTool = tool(
       }
       const msg = err instanceof Error ? err.message : String(err);
       log.error({ err }, 'RD call failed');
-      return `Error al analizar el audio con Reality Defender: ${msg}. Intentá de nuevo en unos minutos.`;
+      return `Error al analizar el audio: ${msg}. Intentá de nuevo en unos minutos.`;
     }
   },
   {
