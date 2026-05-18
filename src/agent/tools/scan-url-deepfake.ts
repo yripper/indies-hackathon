@@ -1,19 +1,14 @@
-import { execFile } from 'node:child_process';
-import { unlink, stat, readFile } from 'node:fs/promises';
-import { randomBytes } from 'node:crypto';
-import { promisify } from 'node:util';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod/v3';
-import { maybeBuildCertificate } from '../../utils/certificate.js';
-import { getSendImage, getCustomerJid } from '../../utils/request-context.js';
-
-const execFileAsync = promisify(execFile);
-
-const SERVICE_URL = () =>
-  (process.env.DEEPFAKE_SERVICE_URL ?? 'http://localhost:8001').replace(/\/$/, '');
+import { getCustomerJid } from '../../utils/request-context.js';
+import {
+  parallelSearch,
+  hostnameOf,
+  ParallelKeyMissingError,
+} from '../../integrations/parallel-search.js';
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Allowlist of video platform hostnames
+// Allowlist of video / social platform hostnames
 // ──────────────────────────────────────────────────────────────────────────────
 const ALLOWED_HOSTS = new Set([
   'youtube.com',
@@ -28,13 +23,15 @@ const ALLOWED_HOSTS = new Set([
   'www.x.com',
   'instagram.com',
   'www.instagram.com',
+  'facebook.com',
+  'www.facebook.com',
+  'fb.watch',
 ]);
 
 // ──────────────────────────────────────────────────────────────────────────────
 // SSRF guard — blocks private/loopback/link-local ranges
 // ──────────────────────────────────────────────────────────────────────────────
 function isPrivateHostname(hostname: string): boolean {
-  // Covers: localhost, ::1, 127.x, 10.x, 172.16-31.x, 192.168.x, 169.254.x
   if (/^localhost$/i.test(hostname)) return true;
   if (/^\[?::1\]?$/.test(hostname)) return true;
   if (/^127\./.test(hostname)) return true;
@@ -49,7 +46,7 @@ function isPrivateHostname(hostname: string): boolean {
 // Per-phone rate limiting (in-memory, resets on restart — good enough for MVP)
 // ──────────────────────────────────────────────────────────────────────────────
 const RATE_LIMIT_WINDOW_MS = 5 * 60 * 1_000; // 5 minutes
-const RATE_LIMIT_MAX_CALLS = 3;
+const RATE_LIMIT_MAX_CALLS = 5;
 
 const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
 
@@ -73,59 +70,20 @@ function checkRateLimit(key: string): void {
   }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Download helper
-// ──────────────────────────────────────────────────────────────────────────────
-const DOWNLOAD_TIMEOUT_MS = 60_000; // 60 s hard cap
-const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB
-
-async function downloadWithYtDlp(url: string): Promise<string> {
-  const suffix = randomBytes(6).toString('hex');
-  const outPath = `/tmp/yt_${suffix}.mp4`;
-
-  await execFileAsync(
-    'yt-dlp',
-    [
-      '--no-playlist',
-      '--max-filesize',
-      '100M',
-      '--format',
-      'best[filesize<100000000]/bestvideo[filesize<100000000]+bestaudio/best',
-      '--merge-output-format',
-      'mp4',
-      '--no-warnings',
-      '--quiet',
-      '-o',
-      outPath,
-      url,
-    ],
-    { timeout: DOWNLOAD_TIMEOUT_MS },
-  );
-
-  return outPath;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Service response type
-// ──────────────────────────────────────────────────────────────────────────────
-interface AnalysisResponse {
-  verdict: string;
-  confidence: number;
-  faces_found: number;
-  frames_analyzed: number;
-  temporal_inconsistency: number;
-  detail?: string;
-}
-
 export type SendImageFn = (imageBuffer: Buffer, caption?: string) => Promise<void>;
 
 /**
- * Create the URL deepfake scan tool.
+ * Create the social-media URL scan tool.
  *
- * @param sendImage - Optional explicit sender. When omitted the tool falls
- *   back to the ambient AgentRequestContext (see ``src/agent/context.ts``).
+ * Instead of downloading the video (yt-dlp) and running pixel-level deepfake
+ * detection — which required a system binary and the Python service — this
+ * researches the web via the Parallel Search API to report what reliable
+ * sources say about the linked content: whether it is AI-generated, a
+ * deepfake, manipulated, or has already been debunked.
+ *
+ * @param _sendImage - accepted for registry compatibility; unused.
  */
-export function createScanUrlDeepfakeTool(sendImage?: SendImageFn) {
+export function createScanUrlDeepfakeTool(_sendImage?: SendImageFn) {
   return tool(
     async ({ url, callerPhone }) => {
       // 1. Parse and validate the URL structure.
@@ -148,8 +106,8 @@ export function createScanUrlDeepfakeTool(sendImage?: SendImageFn) {
       // 3. Platform allowlist.
       if (!ALLOWED_HOSTS.has(parsed.hostname)) {
         return (
-          'Solo se permiten videos de plataformas conocidas: ' +
-          'YouTube, TikTok, Twitter/X e Instagram.'
+          'Solo puedo investigar enlaces de plataformas conocidas: ' +
+          'YouTube, TikTok, Twitter/X, Instagram o Facebook.'
         );
       }
 
@@ -161,99 +119,72 @@ export function createScanUrlDeepfakeTool(sendImage?: SendImageFn) {
         return (err as Error).message;
       }
 
-      // 5. Download.
-      let tmpPath: string | null = null;
+      // 5. Research the link via Parallel Search.
+      const host = hostnameOf(url);
+      const objective =
+        `Investiga el contenido de este enlace de ${host}: ${url}. ` +
+        `¿El video o publicación es un deepfake, está generado o manipulado con IA, ` +
+        `o ha sido desmentido por verificadores o medios? ` +
+        `Resume qué dicen fuentes confiables y si hay señales de desinformación.`;
+      const queries = [
+        `${url} deepfake`,
+        `${url} fake AI generado desmentido`,
+        `${host} ${parsed.pathname.replace(/[/_-]+/g, ' ').trim()}`.slice(0, 80),
+      ];
+
+      let results;
       try {
-        try {
-          tmpPath = await downloadWithYtDlp(url);
-        } catch (err) {
-          const msg = (err as Error).message ?? '';
-          if (msg.includes('is not a supported URL') || msg.includes('Unsupported URL')) {
-            return 'No se pudo descargar el video: URL no soportada o contenido no disponible.';
-          }
-          if (msg.includes('Private video') || msg.includes('This video is private')) {
-            return 'El video es privado y no se puede analizar.';
-          }
-          if (msg.includes('has been removed') || msg.includes('no longer available')) {
-            return 'El video fue eliminado o no está disponible.';
-          }
-          if (msg.includes('maximum filesize') || msg.includes('File is larger')) {
-            return 'El video supera el límite de 100 MB y no puede analizarse.';
-          }
-          if (/timed? ?out/i.test(msg) || msg.includes('ETIMEDOUT')) {
-            return 'La descarga tardó demasiado (límite: 60 segundos). Intenta con un video más corto.';
-          }
-          return `Error al descargar el video: ${msg}`;
+        results = await parallelSearch(objective, queries, {
+          processor: 'base',
+          maxResults: 8,
+          maxCharsPerResult: 1200,
+        });
+      } catch (err) {
+        if (err instanceof ParallelKeyMissingError) {
+          return 'El buscador no está configurado (falta P_SEARCH). Avísale al administrador del bot.';
         }
-
-        // 6. Validate downloaded file size.
-        const fileStats = await stat(tmpPath);
-        if (fileStats.size > MAX_FILE_SIZE_BYTES) {
-          return `El video descargado es demasiado grande (${Math.round(fileStats.size / 1024 / 1024)} MB). Límite: 100 MB.`;
-        }
-
-        // 7. Send to deepfake service.
-        const buffer = await readFile(tmpPath);
-        const form = new FormData();
-        form.append(
-          'file',
-          new Blob([Uint8Array.from(buffer)], { type: 'video/mp4' }),
-          'video.mp4',
-        );
-
-        const res = await fetch(`${SERVICE_URL()}/analyze`, { method: 'POST', body: form });
-        if (!res.ok) {
-          const body = await res.text();
-          throw new Error(`Deepfake service error (${res.status}): ${body}`);
-        }
-
-        const data = (await res.json()) as AnalysisResponse;
-        const pct = Math.round(data.confidence * 100);
-        const inconsistency = Math.round(data.temporal_inconsistency * 100);
-
-        const resultText =
-          `${data.verdict} (${pct}% de confianza). ` +
-          (data.detail ? `${data.detail}. ` : '') +
-          `Frames analizados: ${data.frames_analyzed}, rostros detectados: ${data.faces_found}. ` +
-          `Inconsistencia temporal entre frames: ${inconsistency}%.`;
-
-        // 8. Authenticity certificate (only for REAL verdict).
-        const effectiveSendImage: SendImageFn | undefined = sendImage ?? getSendImage();
-        if (effectiveSendImage) {
-          const cert = await maybeBuildCertificate({
-            mediaType: 'video',
-            mediaBuffer: buffer,
-            confidence: data.confidence,
-            verdict: data.verdict,
-          });
-          if (cert) {
-            await effectiveSendImage(cert, '🛡️ Vero · Certificado de Autenticidad');
-          }
-        }
-
-        return resultText;
-      } finally {
-        // 9. Always clean up the temp file.
-        if (tmpPath) {
-          await unlink(tmpPath).catch(() => {
-            /* ignore cleanup errors */
-          });
-        }
+        const msg = err instanceof Error ? err.message : String(err);
+        return `No pude investigar el enlace en este momento (${msg}). Intenta de nuevo en unos minutos.`;
       }
+
+      if (results.length === 0) {
+        return (
+          `No encontré información pública sobre ese enlace de ${host}. ` +
+          `Eso no significa que sea auténtico — si te lo mandaron pidiendo plata, ` +
+          `datos o claves, verifica por otro canal (llamada directa al número que ya conoces).`
+        );
+      }
+
+      // 6. Hand the evidence to the agent LLM to frame the verdict.
+      const findings = results
+        .slice(0, 6)
+        .map((r, i) => {
+          const snippet = (r.excerpts[0] ?? '').replace(/\s+/g, ' ').slice(0, 280);
+          const date = r.publishDate ? ` (${r.publishDate})` : '';
+          return `${i + 1}. ${r.title} — ${hostnameOf(r.url)}${date}\n   ${snippet}\n   ${r.url}`;
+        })
+        .join('\n');
+
+      return (
+        `Investigué el enlace (${host}) en fuentes web. Esto es lo que encontré ` +
+        `— evalúa si indican que el contenido es falso, generado por IA o desmentido, ` +
+        `y explícaselo al usuario con tu formato de veredicto:\n\n${findings}`
+      );
     },
     {
       name: 'scan_url_deepfake',
       description:
-        'Descarga un video desde una URL pública de YouTube, TikTok, Twitter/X o Instagram ' +
-        'y lo analiza para detectar si es un deepfake. ' +
-        'Úsala cuando el usuario envíe un enlace de video y pregunte si es real, falso o generado por IA. ' +
-        'Límite: videos de hasta 100 MB y descarga máxima de 60 segundos.',
+        'Investiga un enlace de YouTube, TikTok, Twitter/X, Instagram o Facebook ' +
+        'consultando la web (no descarga el video). Reporta qué dicen fuentes ' +
+        'confiables sobre si el contenido es un deepfake, está generado por IA, ' +
+        'manipulado o ha sido desmentido. Úsala cuando el usuario envíe un enlace ' +
+        'de red social y pregunte si es real, falso o generado por IA.',
       schema: z.object({
         url: z
           .string()
           .describe(
-            'URL pública del video en YouTube, TikTok, Twitter/X o Instagram ' +
-              '(ej. https://www.youtube.com/watch?v=dQw4w9WgXcQ)',
+            'URL pública del video/publicación en YouTube, TikTok, Twitter/X, ' +
+              'Instagram o Facebook (ej. https://www.youtube.com/watch?v=dQw4w9WgXcQ)',
           ),
         callerPhone: z
           .string()
@@ -266,6 +197,5 @@ export function createScanUrlDeepfakeTool(sendImage?: SendImageFn) {
   );
 }
 
-// Default export without sendImage — the tool picks up sendImage at runtime
-// from the ambient AgentRequestContext populated by handleIncomingMessage.
+// Default export — registry compatibility (sendImage no longer used).
 export const scanUrlDeepfakeTool = createScanUrlDeepfakeTool();
