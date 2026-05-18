@@ -3,9 +3,15 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod/v3';
 import { maybeBuildCertificate } from '../../utils/certificate.js';
 import { getSendImage, type SendImageFn } from '../../utils/request-context.js';
+import { getCurrentConversationId } from '../context.js';
+import { peekPendingVideo } from '../../transport/video-cache.js';
 
 const SERVICE_URL = () =>
   (process.env.DEEPFAKE_SERVICE_URL ?? 'http://localhost:8001').replace(/\/$/, '');
+
+function isExplicitSource(s: string): boolean {
+  return s.startsWith('http://') || s.startsWith('https://') || s.startsWith('/');
+}
 
 async function fetchVideoBuffer(videoSource: string): Promise<Buffer> {
   if (videoSource.startsWith('http://') || videoSource.startsWith('https://')) {
@@ -44,11 +50,24 @@ interface AnalysisResult {
 export function createDetectDeepfakeVideoTool(sendImage?: SendImageFn) {
   return tool(
     async ({ videoSource }) => {
-      const buffer = await fetchVideoBuffer(videoSource);
+      let buffer: Buffer;
+      let mimeType = 'video/mp4';
+      let filename = 'video.mp4';
 
-      const ext = videoSource.split('.').pop()?.toLowerCase() ?? 'mp4';
-      const mimeType = ext === 'mov' ? 'video/quicktime' : 'video/mp4';
-      const filename = `video.${ext}`;
+      const convId = getCurrentConversationId();
+      const pending = convId ? peekPendingVideo(convId) : null;
+
+      if (pending && !isExplicitSource(videoSource)) {
+        buffer = await readFile(pending.filePath);
+        mimeType = pending.mimetype || 'video/mp4';
+        const extMatch = mimeType.match(/\/([\w]+)/);
+        filename = `video.${extMatch?.[1] ?? 'mp4'}`;
+      } else {
+        buffer = await fetchVideoBuffer(videoSource);
+        const ext = videoSource.split('.').pop()?.toLowerCase() ?? 'mp4';
+        mimeType = ext === 'mov' ? 'video/quicktime' : 'video/mp4';
+        filename = `video.${ext}`;
+      }
 
       const form = new FormData();
       form.append('file', new Blob([Uint8Array.from(buffer)], { type: mimeType }), filename);
@@ -111,12 +130,13 @@ export function createDetectDeepfakeVideoTool(sendImage?: SendImageFn) {
         'Analiza un video para detectar si es un deepfake. Examina múltiples frames, detecta ' +
         'rostros con MTCNN y evalúa artefactos temporales (parpadeo, jitter, lip sync). ' +
         'Úsala cuando el usuario pida analizar un video sospechoso o pregunte si un video es falso o generado por IA. ' +
-        'Acepta una URL pública (https://) o una ruta local al archivo (/tmp/video.mp4).',
+        'Si hay un video pendiente en la conversación, usa videoSource="pending". ' +
+        'También acepta una URL pública (https://) directa.',
       schema: z.object({
         videoSource: z
           .string()
           .describe(
-            'URL pública del video (https://...) o ruta local al archivo (/tmp/wa_video_xxx.mp4)',
+            'Usa "pending" para el video pendiente de la conversación, o una URL pública (https://...)',
           ),
       }),
     },

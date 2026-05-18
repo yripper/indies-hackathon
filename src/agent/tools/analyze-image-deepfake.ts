@@ -3,9 +3,15 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod/v3';
 import { maybeBuildCertificate } from '../../utils/certificate.js';
 import { getSendImage } from '../../utils/request-context.js';
+import { getCurrentConversationId } from '../context.js';
+import { peekPendingImage } from '../../transport/image-cache.js';
 
 const SERVICE_URL = () =>
   (process.env.DEEPFAKE_SERVICE_URL ?? 'http://localhost:8001').replace(/\/$/, '');
+
+function isExplicitSource(s: string): boolean {
+  return s.startsWith('http://') || s.startsWith('https://') || s.startsWith('/');
+}
 
 async function fetchImageBuffer(imageSource: string): Promise<Buffer> {
   if (imageSource.startsWith('http://') || imageSource.startsWith('https://')) {
@@ -28,17 +34,30 @@ export type SendImageFn = (imageBuffer: Buffer, caption?: string) => Promise<voi
 export function createAnalyzeImageDeepfakeTool(sendImage?: SendImageFn) {
   return tool(
     async ({ imageSource }) => {
-      const buffer = await fetchImageBuffer(imageSource);
+      let buffer: Buffer;
+      let mimeType = 'image/jpeg';
+      let filename = 'image.jpg';
 
-      const ext = imageSource.split('.').pop()?.toLowerCase() ?? 'jpg';
-      const mimeMap: Record<string, string> = {
-        jpg: 'image/jpeg',
-        jpeg: 'image/jpeg',
-        png: 'image/png',
-        webp: 'image/webp',
-      };
-      const mimeType = mimeMap[ext] ?? 'image/jpeg';
-      const filename = `image.${ext}`;
+      const convId = getCurrentConversationId();
+      const pending = convId ? peekPendingImage(convId) : null;
+
+      if (pending && !isExplicitSource(imageSource)) {
+        buffer = pending.buffer;
+        mimeType = pending.mimetype || 'image/jpeg';
+        const extMatch = mimeType.match(/\/([\w]+)/);
+        filename = `image.${extMatch?.[1] ?? 'jpg'}`;
+      } else {
+        buffer = await fetchImageBuffer(imageSource);
+        const ext = imageSource.split('.').pop()?.toLowerCase() ?? 'jpg';
+        const mimeMap: Record<string, string> = {
+          jpg: 'image/jpeg',
+          jpeg: 'image/jpeg',
+          png: 'image/png',
+          webp: 'image/webp',
+        };
+        mimeType = mimeMap[ext] ?? 'image/jpeg';
+        filename = `image.${ext}`;
+      }
 
       const form = new FormData();
       form.append('file', new Blob([Uint8Array.from(buffer)], { type: mimeType }), filename);
@@ -79,12 +98,13 @@ export function createAnalyzeImageDeepfakeTool(sendImage?: SendImageFn) {
       description:
         'Analiza una imagen para detectar si es un deepfake o generada por IA. ' +
         'Úsala cuando el usuario envíe una foto sospechosa o pregunte si una imagen es real o falsa. ' +
-        'Acepta una URL pública (https://) o una ruta local al archivo (/tmp/image.jpg).',
+        'Si hay una imagen pendiente en la conversación, usa imageSource="pending". ' +
+        'También acepta una URL pública (https://) directa.',
       schema: z.object({
         imageSource: z
           .string()
           .describe(
-            'URL pública de la imagen (https://...) o ruta local al archivo (/tmp/wa_image_xxx.jpg)',
+            'Usa "pending" para analizar la imagen pendiente de la conversación, o una URL pública (https://...)',
           ),
       }),
     },

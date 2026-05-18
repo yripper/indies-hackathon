@@ -1,6 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { tool } from '@langchain/core/tools';
 import { z } from 'zod/v3';
+import { getCurrentConversationId } from '../context.js';
+import { peekPendingAudio } from '../../transport/audio-cache.js';
+
+function isExplicitSource(s: string): boolean {
+  return s.startsWith('http://') || s.startsWith('https://') || s.startsWith('/');
+}
 
 async function fetchAudioBuffer(audioSource: string): Promise<Buffer> {
   if (audioSource.startsWith('http://') || audioSource.startsWith('https://')) {
@@ -11,10 +17,6 @@ async function fetchAudioBuffer(audioSource: string): Promise<Buffer> {
   return readFile(audioSource);
 }
 
-/**
- * Transcribes an audio file using the OpenAI Whisper API.
- * Requires OPENAI_API_KEY to be set in the environment.
- */
 export const transcribeAudioTool = tool(
   async ({ audioSource }) => {
     const apiKey = process.env.OPENAI_API_KEY;
@@ -22,19 +24,32 @@ export const transcribeAudioTool = tool(
       throw new Error('OPENAI_API_KEY no está configurado. No se puede transcribir el audio.');
     }
 
-    const buffer = await fetchAudioBuffer(audioSource);
+    let buffer: Buffer;
+    let mimeType = 'audio/ogg';
+    let filename = 'audio.ogg';
 
-    const ext = audioSource.split('.').pop()?.toLowerCase() ?? 'ogg';
-    const mimeMap: Record<string, string> = {
-      mp3: 'audio/mpeg',
-      wav: 'audio/wav',
-      ogg: 'audio/ogg',
-      m4a: 'audio/mp4',
-      opus: 'audio/ogg',
-      webm: 'audio/webm',
-    };
-    const mimeType = mimeMap[ext] ?? 'audio/ogg';
-    const filename = `audio.${ext}`;
+    const convId = getCurrentConversationId();
+    const pending = convId ? peekPendingAudio(convId) : null;
+
+    if (pending && !isExplicitSource(audioSource)) {
+      buffer = pending.buffer;
+      mimeType = pending.mimetype || 'audio/ogg';
+      const extMatch = mimeType.match(/\/([\w]+)/);
+      filename = `audio.${extMatch?.[1] ?? 'ogg'}`;
+    } else {
+      buffer = await fetchAudioBuffer(audioSource);
+      const ext = audioSource.split('.').pop()?.toLowerCase() ?? 'ogg';
+      const mimeMap: Record<string, string> = {
+        mp3: 'audio/mpeg',
+        wav: 'audio/wav',
+        ogg: 'audio/ogg',
+        m4a: 'audio/mp4',
+        opus: 'audio/ogg',
+        webm: 'audio/webm',
+      };
+      mimeType = mimeMap[ext] ?? 'audio/ogg';
+      filename = `audio.${ext}`;
+    }
 
     const form = new FormData();
     form.append('file', new Blob([Uint8Array.from(buffer)], { type: mimeType }), filename);
@@ -64,13 +79,13 @@ export const transcribeAudioTool = tool(
     description:
       'Transcribe un archivo de audio a texto usando OpenAI Whisper. ' +
       'Úsala cuando necesites saber qué dice un audio antes de verificar su contenido. ' +
-      'Acepta una URL pública (https://) o una ruta local al archivo (/tmp/audio.ogg). ' +
-      'Requiere OPENAI_API_KEY en el entorno.',
+      'Si hay un audio pendiente en la conversación, usa audioSource="pending". ' +
+      'También acepta una URL pública (https://) directa.',
     schema: z.object({
       audioSource: z
         .string()
         .describe(
-          'URL pública del audio (https://...) o ruta local al archivo (/tmp/wa_audio_xxx.ogg)',
+          'Usa "pending" para el audio pendiente de la conversación, o una URL pública (https://...)',
         ),
     }),
   },

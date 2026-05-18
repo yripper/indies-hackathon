@@ -3,9 +3,15 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod/v3';
 import { maybeBuildCertificate } from '../../utils/certificate.js';
 import { getSendImage } from '../../utils/request-context.js';
+import { getCurrentConversationId } from '../context.js';
+import { peekPendingAudio } from '../../transport/audio-cache.js';
 
 const SERVICE_URL = () =>
   (process.env.DEEPFAKE_SERVICE_URL ?? 'http://localhost:8001').replace(/\/$/, '');
+
+function isExplicitSource(s: string): boolean {
+  return s.startsWith('http://') || s.startsWith('https://') || s.startsWith('/');
+}
 
 async function fetchAudioBuffer(audioSource: string): Promise<Buffer> {
   if (audioSource.startsWith('http://') || audioSource.startsWith('https://')) {
@@ -28,18 +34,31 @@ export type SendImageFn = (imageBuffer: Buffer, caption?: string) => Promise<voi
 export function createAnalyzeAudioDeepfakeTool(sendImage?: SendImageFn) {
   return tool(
     async ({ audioSource }) => {
-      const buffer = await fetchAudioBuffer(audioSource);
+      let buffer: Buffer;
+      let mimeType = 'audio/ogg';
+      let filename = 'audio.ogg';
 
-      const ext = audioSource.split('.').pop()?.toLowerCase() ?? 'wav';
-      const mimeMap: Record<string, string> = {
-        mp3: 'audio/mpeg',
-        wav: 'audio/wav',
-        ogg: 'audio/ogg',
-        m4a: 'audio/mp4',
-        opus: 'audio/ogg',
-      };
-      const mimeType = mimeMap[ext] ?? 'audio/wav';
-      const filename = `audio.${ext}`;
+      const convId = getCurrentConversationId();
+      const pending = convId ? peekPendingAudio(convId) : null;
+
+      if (pending && !isExplicitSource(audioSource)) {
+        buffer = pending.buffer;
+        mimeType = pending.mimetype || 'audio/ogg';
+        const extMatch = mimeType.match(/\/([\w]+)/);
+        filename = `audio.${extMatch?.[1] ?? 'ogg'}`;
+      } else {
+        buffer = await fetchAudioBuffer(audioSource);
+        const ext = audioSource.split('.').pop()?.toLowerCase() ?? 'wav';
+        const mimeMap: Record<string, string> = {
+          mp3: 'audio/mpeg',
+          wav: 'audio/wav',
+          ogg: 'audio/ogg',
+          m4a: 'audio/mp4',
+          opus: 'audio/ogg',
+        };
+        mimeType = mimeMap[ext] ?? 'audio/wav';
+        filename = `audio.${ext}`;
+      }
 
       const form = new FormData();
       form.append('file', new Blob([Uint8Array.from(buffer)], { type: mimeType }), filename);
@@ -80,12 +99,13 @@ export function createAnalyzeAudioDeepfakeTool(sendImage?: SendImageFn) {
       description:
         'Analiza un archivo de audio para detectar si es un deepfake o voz generada por IA. ' +
         'Úsala cuando el usuario envíe un audio sospechoso o pregunte si una voz es real o sintética. ' +
-        'Acepta una URL pública (https://) o una ruta local al archivo (/tmp/audio.ogg).',
+        'Si hay un audio pendiente en la conversación, usa audioSource="pending". ' +
+        'También acepta una URL pública (https://) directa.',
       schema: z.object({
         audioSource: z
           .string()
           .describe(
-            'URL pública del audio (https://...) o ruta local al archivo (/tmp/wa_audio_xxx.ogg)',
+            'Usa "pending" para analizar el audio pendiente de la conversación, o una URL pública (https://...)',
           ),
       }),
     },
